@@ -1,10 +1,3 @@
-//
-//  m_studioApp.swift
-//  m_studio
-//
-//  Created by Issac Ting on 16/5/26.
-//
-
 import SwiftUI
 
 @main
@@ -13,5 +6,9 @@ struct m_studioApp: App {
         WindowGroup {
             ContentView()
         }
+        #if os(macOS)
+        .windowStyle(.titleBar)
+        .defaultSize(width: 1440, height: 850)
+        #endif
     }
 }

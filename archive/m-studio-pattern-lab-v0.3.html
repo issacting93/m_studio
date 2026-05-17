@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M-STUDIO / Pattern Lab v0.3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Archivo:wght@500;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root {
+  --paper: #f1ede3;
+  --ink: #141414;
+  --accent: #d63d2e;
+  --accent-2: #2864db;
+  --grid: #e3ddcb;
+  --soft: #7c7568;
+  --highlight: #ffd60a;
+  --piece-fill: rgba(255,255,255,0.6);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--paper); }
+body {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--ink);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  min-height: 100vh;
+  font-size: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+.app { display: grid; grid-template-columns: 320px 1fr; min-height: 100vh; }
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .controls { position: relative !important; max-height: none !important; border-right: none !important; border-bottom: 2px solid var(--ink); }
+}
+.controls {
+  background: var(--paper);
+  border-right: 2px solid var(--ink);
+  padding: 22px 22px 80px;
+  position: sticky; top: 0; max-height: 100vh; overflow-y: auto;
+}
+.canvas-area { padding: 22px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+.brand-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  border-bottom: 1px solid var(--ink); padding-bottom: 14px; margin-bottom: 18px;
+}
+.brand-header h1 {
+  font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 22px;
+  letter-spacing: -0.03em; line-height: 0.9;
+}
+.brand-header .tagline {
+  font-size: 8.5px; color: var(--soft); margin-top: 4px;
+  text-transform: uppercase; letter-spacing: 0.2em; font-weight: 500;
+}
+.brand-header .v-badge {
+  font-size: 8px; background: var(--accent); color: white;
+  padding: 3px 7px; letter-spacing: 0.15em; font-weight: 700;
+}
+
+.silo-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 22px; }
+.silo-btn {
+  background: var(--paper); border: 1px solid var(--ink);
+  padding: 8px 6px 6px; cursor: pointer; font-family: inherit;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  transition: all 0.12s; position: relative;
+}
+.silo-btn:hover { background: var(--grid); }
+.silo-btn.active { background: var(--ink); color: var(--paper); }
+.silo-btn.active svg .silo-stroke { stroke: var(--paper); }
+.silo-btn.active svg .silo-fill { fill: rgba(255,255,255,0.15); }
+.silo-btn svg { width: 36px; height: 36px; }
+.silo-btn svg .silo-stroke { stroke: var(--ink); stroke-width: 1.2; fill: none; transition: stroke 0.12s; }
+.silo-btn svg .silo-fill { fill: rgba(0,0,0,0.05); transition: fill 0.12s; }
+.silo-btn .silo-name { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.silo-btn .silo-code { position: absolute; top: 3px; right: 4px; font-size: 6.5px; color: var(--soft); letter-spacing: 0.05em; }
+.silo-btn.active .silo-code { color: var(--paper); opacity: 0.7; }
+
+.section { margin-bottom: 18px; }
+.section-title {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--soft); margin-bottom: 10px;
+  display: flex; justify-content: space-between;
+  border-bottom: 1px dashed var(--soft); padding-bottom: 5px;
+}
+.section-title .num { background: var(--ink); color: var(--paper); padding: 1px 5px; font-size: 8px; letter-spacing: 0.1em; font-weight: 700; }
+
+.control { margin-bottom: 12px; }
+.control label {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 10.5px; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.control label .val {
+  font-weight: 700; background: var(--ink); color: var(--paper);
+  padding: 2px 7px; font-size: 9.5px; font-variant-numeric: tabular-nums;
+  min-width: 46px; text-align: center;
+}
+.control input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; background: transparent; height: 18px; cursor: pointer; }
+.control input[type=range]::-webkit-slider-runnable-track { height: 2px; background: var(--ink); }
+.control input[type=range]::-moz-range-track { height: 2px; background: var(--ink); }
+.control input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  background: var(--accent); margin-top: -6px; border-radius: 0;
+  border: 2px solid var(--ink); cursor: pointer;
+}
+.control input[type=range]::-moz-range-thumb {
+  width: 12px; height: 12px; background: var(--accent);
+  border-radius: 0; border: 2px solid var(--ink); cursor: pointer;
+}
+
+.toggle-group { display: flex; border: 1px solid var(--ink); margin-bottom: 6px; }
+.toggle {
+  flex: 1; min-width: 0; padding: 7px 4px;
+  border: none; border-right: 1px solid var(--ink);
+  background: var(--paper); font-family: inherit; font-size: 9.5px;
+  cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; color: var(--ink);
+}
+.toggle:last-child { border-right: none; }
+.toggle.active { background: var(--ink); color: var(--paper); }
+.toggle:hover:not(.active) { background: var(--grid); }
+
+.sub-label { font-size: 9px; color: var(--soft); text-transform: uppercase; letter-spacing: 0.1em; display: block; margin: 8px 0 4px; font-weight: 600; }
+
+.colorway-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.cw-btn {
+  aspect-ratio: 1; border: 1.5px solid var(--ink); cursor: pointer; position: relative; padding: 0;
+  display: flex; align-items: flex-end; justify-content: flex-start; overflow: hidden;
+}
+.cw-btn::after {
+  content: attr(data-name); position: absolute; inset: auto 0 0 0;
+  background: var(--ink); color: var(--paper);
+  font-size: 6.5px; font-weight: 700; letter-spacing: 0.05em;
+  padding: 2px 3px; text-align: center; font-family: 'JetBrains Mono', monospace;
+}
+.cw-btn.active { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.fabric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.fb-btn {
+  border: 1px solid var(--ink); background: var(--paper); cursor: pointer;
+  padding: 6px; font-family: inherit; display: flex; flex-direction: column; gap: 4px; text-align: left;
+}
+.fb-btn:hover { background: var(--grid); }
+.fb-btn.active { background: var(--ink); color: var(--paper); }
+.fb-btn .fb-swatch { height: 22px; border: 1px solid var(--ink); background-size: 8px 8px; background-color: #888; }
+.fb-btn.active .fb-swatch { border-color: var(--paper); }
+.fb-btn .fb-name { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; line-height: 1.1; }
+.fb-btn .fb-spec { font-size: 7.5px; color: var(--soft); letter-spacing: 0.05em; }
+.fb-btn.active .fb-spec { color: rgba(241,237,227,0.7); }
+
+/* AI Graphic Panel */
+.ai-panel { display: flex; flex-direction: column; gap: 4px; }
+.ai-input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--ink);
+  background: var(--paper); font-family: inherit; font-size: 10px;
+  letter-spacing: 0.04em; color: var(--ink); resize: vertical; min-height: 50px;
+}
+.ai-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.ai-loading {
+  display: none; font-size: 9px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.15em;
+  padding: 4px 0; font-weight: 700;
+}
+.ai-loading.show { display: block; }
+.ai-loading::before { content: '◐'; display: inline-block; animation: spin 0.8s linear infinite; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* SIZE PICKER */
+.size-picker { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--ink); }
+.size-btn {
+  padding: 7px 2px; background: var(--paper); border: none; border-right: 1px solid var(--ink);
+  font-family: inherit; font-size: 10px; font-weight: 700; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+.size-btn:last-child { border-right: none; }
+.size-btn.active { background: var(--ink); color: var(--paper); }
+
+/* CANVAS TABS */
+.canvas-tabs { display: flex; gap: 2px; margin-bottom: -1px; flex-wrap: wrap; }
+.tab {
+  background: var(--paper); border: 1px solid var(--ink);
+  padding: 9px 12px; font-family: inherit; font-size: 9.5px;
+  cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em;
+  font-weight: 700; color: var(--ink); border-bottom: 1px solid var(--ink);
+}
+.tab.active { background: var(--ink); color: var(--paper); position: relative; z-index: 2; }
+
+.canvas-frame {
+  background: var(--paper); border: 1px solid var(--ink);
+  padding: 24px 20px 14px; position: relative; min-height: 480px;
+}
+.canvas-frame::before {
+  content: attr(data-label); position: absolute; top: 0; left: 18px;
+  background: var(--paper); padding: 0 8px;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.18em;
+  transform: translateY(-50%); font-weight: 700;
+}
+.canvas-frame::after {
+  content: attr(data-tag); position: absolute; top: 0; right: 18px;
+  background: var(--accent); color: white;
+  padding: 2px 8px; font-size: 8px; letter-spacing: 0.15em;
+  transform: translateY(-50%); font-weight: 700;
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+svg.canvas-svg { display: block; width: 100%; height: auto; max-height: 600px; user-select: none; }
+
+#threeContainer { width: 100%; height: 540px; position: relative; background: var(--paper); border: 1px solid var(--ink); touch-action: none; }
+#threeHud {
+  position: absolute; top: 12px; left: 12px;
+  font-size: 9px; color: var(--soft); letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700;
+  background: rgba(241,237,227,0.85); padding: 4px 8px; border: 1px solid var(--ink);
+}
+#threeHudR {
+  position: absolute; top: 12px; right: 12px;
+  font-size: 9px; color: var(--soft); letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700;
+  background: rgba(241,237,227,0.85); padding: 4px 8px; border: 1px solid var(--ink);
+}
+.gz-handle {
+  fill: var(--accent); cursor: move;
+}
+.gz-resize {
+  fill: var(--ink); cursor: nwse-resize;
+}
+
+/* Spec & Sourcing */
+.spec-table { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 1px; background: var(--ink); border: 1px solid var(--ink); }
+.spec-cell { background: var(--paper); padding: 10px 12px; }
+.spec-cell .key { font-size: 8px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--soft); font-weight: 700; }
+.spec-cell .v { font-size: 15px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; line-height: 1.1; word-break: break-word; }
+.spec-cell .v .unit { font-size: 9px; color: var(--soft); font-weight: 400; margin-left: 2px; letter-spacing: 0.1em; }
+
+.sourcing-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.source-row {
+  display: grid; grid-template-columns: 110px 1fr auto; gap: 12px;
+  padding: 10px 12px; border: 1px solid var(--ink);
+  background: rgba(255,255,255,0.4); align-items: center;
+}
+.source-row .role { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--soft); }
+.source-row .name { font-size: 11px; font-weight: 700; }
+.source-row .name small { font-weight: 400; color: var(--soft); font-size: 9px; display: block; margin-top: 1px; letter-spacing: 0.05em; }
+.source-row .tag { font-size: 8px; background: var(--ink); color: var(--paper); padding: 3px 6px; letter-spacing: 0.1em; font-weight: 700; }
+
+.size-grade-table { width: 100%; border-collapse: collapse; border: 1px solid var(--ink); margin-top: 4px; }
+.size-grade-table th, .size-grade-table td {
+  padding: 8px 10px; border: 1px solid var(--ink); text-align: left;
+  font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.size-grade-table th {
+  background: var(--ink); color: var(--paper); text-transform: uppercase;
+  letter-spacing: 0.12em; font-size: 9px; font-weight: 700;
+}
+.size-grade-table td.measurement { color: var(--soft); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9px; }
+.size-grade-table tr.current-size td:not(.measurement) { background: rgba(214, 61, 46, 0.08); }
+.size-grade-table tr.current-size td:first-child { color: var(--accent); }
+
+.footer-meta {
+  display: flex; justify-content: space-between; padding: 10px 2px;
+  font-size: 9px; text-transform: uppercase; letter-spacing: 0.18em;
+  color: var(--soft); border-top: 1px solid var(--ink);
+}
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn {
+  padding: 10px 8px; border: 1.5px solid var(--ink);
+  font-family: inherit; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; font-size: 9.5px; cursor: pointer;
+  background: var(--paper); color: var(--ink); transition: background 0.12s;
+}
+.btn:hover { background: var(--ink); color: var(--paper); }
+.btn.primary { background: var(--accent); color: white; border-color: var(--ink); }
+.btn.primary:hover { background: var(--ink); }
+.btn.full { grid-column: 1 / -1; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 9px; color: var(--soft); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 10px; }
+.legend .item { display: flex; align-items: center; gap: 6px; }
+.legend .swatch { width: 12px; height: 12px; border: 1px solid var(--ink); }
+.legend .swatch.piece { background: var(--piece-fill); }
+.legend .swatch.graphic { background: rgba(255, 214, 10, 0.4); border-style: dashed; }
+.legend .swatch.fold { background: transparent; border-style: dashed; }
+.legend .swatch.accent { background: var(--accent); border-color: var(--accent); }
+
+.note {
+  font-size: 9px; color: var(--soft); line-height: 1.55;
+  padding: 8px 10px; border-left: 2px solid var(--accent);
+  background: rgba(214, 61, 46, 0.04); letter-spacing: 0.03em;
+}
+
+.toast {
+  position: fixed; bottom: 20px; left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--ink); color: var(--paper); padding: 10px 18px;
+  font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 700;
+  border: 1px solid var(--ink); opacity: 0; transition: all 0.25s;
+  pointer-events: none; z-index: 100;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+#savedList { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.saved-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 8px; font-size: 9.5px;
+  background: rgba(255,255,255,0.4); border: 1px solid var(--ink); cursor: pointer;
+}
+.saved-item:hover { background: var(--grid); }
+.saved-item .si-name { font-weight: 700; letter-spacing: 0.05em; }
+.saved-item .si-meta { color: var(--soft); font-size: 8px; letter-spacing: 0.1em; }
+.saved-item .si-del { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; padding: 0 4px; font-family: inherit; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="controls">
+    <div class="brand-header">
+      <div><h1>M-STUDIO</h1><div class="tagline">Pattern Lab · Techwear</div></div>
+      <div class="v-badge">v0.3</div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Silhouette</span><span class="num">01</span></div>
+      <div class="silo-selector" id="siloSelector">
+        <button class="silo-btn active" data-silo="noragi">
+          <span class="silo-code">M-NRG</span>
+          <svg viewBox="0 0 40 40"><path class="silo-fill" d="M8,8 L14,8 L14,12 L26,12 L26,8 L32,8 L32,16 L28,16 L28,32 L12,32 L12,16 L8,16 Z"/><path class="silo-stroke" d="M8,8 L14,8 L14,12 L26,12 L26,8 L32,8 L32,16 L28,16 L28,32 L12,32 L12,16 L8,16 Z"/><line class="silo-stroke" x1="20" y1="12" x2="20" y2="32"/></svg>
+          <span class="silo-name">Noragi</span>
+        </button>
+        <button class="silo-btn" data-silo="bomber">
+          <span class="silo-code">M-BMB</span>
+          <svg viewBox="0 0 40 40"><path class="silo-fill" d="M10,12 L14,8 L26,8 L30,12 L32,18 L30,20 L30,28 L10,28 L10,20 L8,18 Z"/><path class="silo-stroke" d="M10,12 L14,8 L26,8 L30,12 L32,18 L30,20 L30,28 L10,28 L10,20 L8,18 Z"/><line class="silo-stroke" x1="20" y1="8" x2="20" y2="28"/><line class="silo-stroke" x1="10" y1="26" x2="30" y2="26" stroke-dasharray="1 1"/></svg>
+          <span class="silo-name">Bomber</span>
+        </button>
+        <button class="silo-btn" data-silo="hoodie">
+          <span class="silo-code">M-HOD</span>
+          <svg viewBox="0 0 40 40"><path class="silo-fill" d="M14,4 Q20,2 26,4 L28,10 L32,12 L30,18 L30,30 L10,30 L10,18 L8,12 L12,10 Z"/><path class="silo-stroke" d="M14,4 Q20,2 26,4 L28,10 L32,12 L30,18 L30,30 L10,30 L10,18 L8,12 L12,10 Z"/><line class="silo-stroke" x1="20" y1="6" x2="20" y2="30"/></svg>
+          <span class="silo-name">Hooded</span>
+        </button>
+        <button class="silo-btn" data-silo="parka">
+          <span class="silo-code">M-PRK</span>
+          <svg viewBox="0 0 40 40"><path class="silo-fill" d="M14,4 Q20,2 26,4 L28,10 L32,14 L30,18 L30,36 L10,36 L10,18 L8,14 L12,10 Z"/><path class="silo-stroke" d="M14,4 Q20,2 26,4 L28,10 L32,14 L30,18 L30,36 L10,36 L10,18 L8,14 L12,10 Z"/><line class="silo-stroke" x1="20" y1="6" x2="20" y2="36"/><rect class="silo-stroke" x="13" y="22" width="5" height="4"/><rect class="silo-stroke" x="22" y="22" width="5" height="4"/></svg>
+          <span class="silo-name">Parka</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Size (Base)</span><span class="num">02</span></div>
+      <div class="size-picker" id="sizePicker">
+        <button class="size-btn" data-size="XS">XS</button>
+        <button class="size-btn" data-size="S">S</button>
+        <button class="size-btn active" data-size="M">M</button>
+        <button class="size-btn" data-size="L">L</button>
+        <button class="size-btn" data-size="XL">XL</button>
+        <button class="size-btn" data-size="XXL">XXL</button>
+      </div>
+    </div>
+
+    <div class="section" id="bodySection">
+      <div class="section-title"><span>Body</span><span class="num">03</span></div>
+      <div class="control"><label>Length <span class="val"><span id="bodyLength-val">85</span> cm</span></label><input type="range" id="bodyLength" min="50" max="115" value="85"></div>
+      <div class="control"><label>Width <span class="val"><span id="bodyWidth-val">62</span> cm</span></label><input type="range" id="bodyWidth" min="48" max="92" value="62"></div>
+      <div class="control" id="overlapControl"><label>Front Overlap <span class="val"><span id="overlap-val">15</span> cm</span></label><input type="range" id="overlap" min="4" max="28" value="15"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Sleeve</span><span class="num">04</span></div>
+      <div class="control"><label>Length <span class="val"><span id="sleeveLength-val">62</span> cm</span></label><input type="range" id="sleeveLength" min="18" max="80" value="62"></div>
+      <div class="control"><label>Bicep <span class="val"><span id="sleeveDepth-val">32</span> cm</span></label><input type="range" id="sleeveDepth" min="18" max="48" value="32"></div>
+      <div class="control"><label>Cuff <span class="val"><span id="sleeveOpen-val">22</span> cm</span></label><input type="range" id="sleeveOpen" min="12" max="42" value="22"></div>
+      <div class="toggle-group">
+        <button class="toggle active" data-toggle="sleeveType" data-val="dropped">Dropped</button>
+        <button class="toggle" data-toggle="sleeveType" data-val="raglan">Raglan</button>
+        <button class="toggle" data-toggle="sleeveType" data-val="setin">Set-in</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Features</span><span class="num">05</span></div>
+      <label class="sub-label">Closure</label>
+      <div class="toggle-group">
+        <button class="toggle active" data-toggle="closure" data-val="zip">YKK Zip</button>
+        <button class="toggle" data-toggle="closure" data-val="tie">Tie</button>
+        <button class="toggle" data-toggle="closure" data-val="snap">Snap</button>
+      </div>
+      <label class="sub-label">Pocket</label>
+      <div class="toggle-group">
+        <button class="toggle active" data-toggle="pocket" data-val="welt">Welt</button>
+        <button class="toggle" data-toggle="pocket" data-val="patch">Patch</button>
+        <button class="toggle" data-toggle="pocket" data-val="cargo">Cargo</button>
+        <button class="toggle" data-toggle="pocket" data-val="none">None</button>
+      </div>
+      <label class="sub-label">Graphic Style</label>
+      <div class="toggle-group">
+        <button class="toggle active" data-toggle="graphic" data-val="milspec">Mil-spec</button>
+        <button class="toggle" data-toggle="graphic" data-val="mecha">Mecha</button>
+        <button class="toggle" data-toggle="graphic" data-val="type">Typo</button>
+        <button class="toggle" data-toggle="graphic" data-val="ai">AI</button>
+        <button class="toggle" data-toggle="graphic" data-val="off">Off</button>
+      </div>
+    </div>
+
+    <div class="section" id="aiSection" style="display:none;">
+      <div class="section-title"><span>AI Graphic</span><span class="num">06</span></div>
+      <div class="ai-panel">
+        <textarea class="ai-input" id="aiPrompt" placeholder="Describe the back graphic, e.g. 'cyberpunk mecha schematic for Series 02, with hazard warnings and unit codes'">cyberpunk parts diagram with mecha callouts and serial numbers</textarea>
+        <div class="actions">
+          <button class="btn primary" id="aiGen">Generate</button>
+          <button class="btn" id="aiClear">Clear</button>
+        </div>
+        <div class="ai-loading" id="aiLoading">Generating</div>
+        <div class="note">Calls Claude to generate Machine56-style SVG graphics. Output is vector — fully editable in Illustrator.</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Colorway</span><span class="num">07</span></div>
+      <div class="colorway-grid" id="cwGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Fabric</span><span class="num">08</span></div>
+      <div class="fabric-grid" id="fabricGrid"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title"><span>Workspace</span><span class="num">09</span></div>
+      <div class="actions">
+        <button class="btn primary" id="saveBtn">Save</button>
+        <button class="btn" id="randomize">Randomize</button>
+        <button class="btn" id="exportSvg">SVG</button>
+        <button class="btn" id="exportDxf">DXF</button>
+        <button class="btn full" id="exportJson">Spec JSON · Tech Pack</button>
+      </div>
+      <div id="savedList"></div>
+    </div>
+  </aside>
+
+  <main class="canvas-area">
+    <div class="canvas-tabs">
+      <button class="tab active" data-tab="garment">Garment</button>
+      <button class="tab" data-tab="three">3D View</button>
+      <button class="tab" data-tab="pattern">Flat Pattern</button>
+      <button class="tab" data-tab="colorway">Colorway</button>
+      <button class="tab" data-tab="sizes">Size Grade</button>
+      <button class="tab" data-tab="sourcing">Sourcing</button>
+    </div>
+
+    <div class="canvas-frame" data-label="// Drawing" data-tag="LIVE" id="canvasFrame">
+      <div class="tab-panel active" data-panel="garment">
+        <svg id="garmentSvg" class="canvas-svg" viewBox="0 0 800 600"></svg>
+        <div class="legend">
+          <div class="item"><div class="swatch piece"></div><span>Garment</span></div>
+          <div class="item"><div class="swatch graphic"></div><span>Drag graphic →</span></div>
+          <div class="item"><div class="swatch accent"></div><span>Hardware</span></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="three">
+        <div id="threeContainer">
+          <div id="threeHud">Drag to rotate · Scroll to zoom</div>
+          <div id="threeHudR">3D · WEBGL</div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="pattern">
+        <svg id="patternSvg" class="canvas-svg" viewBox="0 0 800 600"></svg>
+        <div class="legend">
+          <div class="item"><div class="swatch piece"></div><span>Piece</span></div>
+          <div class="item"><div class="swatch fold"></div><span>Fold / dashed</span></div>
+          <div class="item"><div class="swatch graphic"></div><span>Graphic zone</span></div>
+          <div class="item"><div class="swatch accent"></div><span>Spec callout</span></div>
+        </div>
+      </div>
+      <div class="tab-panel" data-panel="colorway">
+        <svg id="colorwaySvg" class="canvas-svg" viewBox="0 0 800 600"></svg>
+      </div>
+      <div class="tab-panel" data-panel="sizes">
+        <div id="sizesPanel"></div>
+      </div>
+      <div class="tab-panel" data-panel="sourcing">
+        <div class="sourcing-grid" id="sourcingGrid"></div>
+        <div class="note" style="margin-top: 14px;">
+          Starting-point suppliers. After your first sample, your factory will have preferred mills with better pricing — ask for swatches first.
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas-frame" data-label="// Spec Table" data-tag="DATA" style="min-height: auto;">
+      <div class="spec-table" id="specTable"></div>
+    </div>
+
+    <div class="footer-meta">
+      <span id="footerLeft">M-STUDIO · ZAC TING / NYC · 2026</span>
+      <span id="footerRight">DOC: M-NRG-001.A</span>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast">Saved</div>
+
+<script>
+// =====================================================
+// CONFIG & STATE
+// =====================================================
+const C = { ink: '#141414', paper: '#f1ede3', accent: '#d63d2e', accent2: '#2864db', soft: '#7c7568', highlight: '#ffd60a', pieceFill: 'rgba(255,255,255,0.6)' };
+
+const COLORWAYS = [
+  { id: 'stealth', name: 'STEALTH', primary: '#1a1a1a', secondary: '#2a2a2a', accent: '#d63d2e', graphic: '#ffffff' },
+  { id: 'hazard', name: 'HAZARD', primary: '#f4c10f', secondary: '#1a1a1a', accent: '#d63d2e', graphic: '#1a1a1a' },
+  { id: 'tactical', name: 'TACTICAL', primary: '#3a4a2e', secondary: '#2a2f22', accent: '#d6b15d', graphic: '#f1ede3' },
+  { id: 'gunmetal', name: 'GUNMETAL', primary: '#5a5d63', secondary: '#3a3d43', accent: '#2864db', graphic: '#f1ede3' },
+  { id: 'arctic', name: 'ARCTIC', primary: '#e8e6e0', secondary: '#c0bdb4', accent: '#1a1a1a', graphic: '#1a1a1a' },
+  { id: 'inferno', name: 'INFERNO', primary: '#d63d2e', secondary: '#8b1d12', accent: '#ffd60a', graphic: '#1a1a1a' },
+  { id: 'cyber', name: 'CYBER', primary: '#1a1a1a', secondary: '#0a0a0a', accent: '#00ffe0', graphic: '#ff007a' },
+  { id: 'sand', name: 'SAND', primary: '#c8b896', secondary: '#a89674', accent: '#5d3a1f', graphic: '#1a1a1a' }
+];
+
+const FABRICS = [
+  { id: 'ripstop70', name: 'Ripstop 70D', spec: '70 g/m² · DWR', source: 'Ripstop by the Roll', cost: 8, pattern: 'cross' },
+  { id: 'taslan', name: 'Taslan 228T', spec: '120 g/m² · DWR', source: 'Toray / Taiana', cost: 14, pattern: 'twill' },
+  { id: 'shell3l', name: '3L Shell', spec: '210 g/m² · WP', source: 'Seattle Fabrics', cost: 28, pattern: 'smooth' },
+  { id: 'cordura', name: 'Cordura 500D', spec: '320 g/m² · Abrasion', source: 'Rockywoods', cost: 18, pattern: 'dense' },
+  { id: 'twillpoly', name: 'Poly Twill', spec: '180 g/m² · Soft', source: 'Big Duck Canvas', cost: 6, pattern: 'twill' },
+  { id: 'meshmil', name: 'Mil Mesh', spec: '90 g/m² · Vent', source: 'Rockywoods', cost: 10, pattern: 'mesh' }
+];
+
+// Industry grade rules per size step
+const GRADE_RULES = {
+  XS: { body: -8, length: -4, sleeveLen: -6, sleeveD: -4, cuff: -3 },
+  S:  { body: -4, length: -2, sleeveLen: -3, sleeveD: -2, cuff: -1.5 },
+  M:  { body: 0, length: 0, sleeveLen: 0, sleeveD: 0, cuff: 0 },
+  L:  { body: 4, length: 2, sleeveLen: 3, sleeveD: 2, cuff: 1.5 },
+  XL: { body: 8, length: 4, sleeveLen: 6, sleeveD: 4, cuff: 3 },
+  XXL:{ body: 12, length: 6, sleeveLen: 9, sleeveD: 6, cuff: 4.5 }
+};
+
+const state = {
+  silhouette: 'noragi', view: 'garment', size: 'M',
+  bodyLength: 85, bodyWidth: 62, overlap: 15,
+  sleeveLength: 42, sleeveDepth: 32, sleeveOpen: 28,
+  sleeveType: 'dropped', closure: 'tie', pocket: 'patch',
+  graphic: 'milspec', colorway: 'stealth', fabric: 'ripstop70',
+  graphicZone: { x: 0.5, y: 0.18, w: 0.9, h: 0.42 }, // relative to back panel
+  aiGraphic: null
+};
+
+const SILHOUETTE_DEFAULTS = {
+  noragi:  { bodyLength: 85, bodyWidth: 68, sleeveLength: 42, sleeveDepth: 32, sleeveOpen: 28, sleeveType: 'dropped', closure: 'tie', pocket: 'patch', overlap: 15 },
+  bomber:  { bodyLength: 62, bodyWidth: 58, sleeveLength: 62, sleeveDepth: 32, sleeveOpen: 22, sleeveType: 'raglan', closure: 'zip', pocket: 'welt', overlap: 6 },
+  hoodie:  { bodyLength: 68, bodyWidth: 60, sleeveLength: 64, sleeveDepth: 34, sleeveOpen: 22, sleeveType: 'raglan', closure: 'zip', pocket: 'welt', overlap: 6 },
+  parka:   { bodyLength: 92, bodyWidth: 64, sleeveLength: 65, sleeveDepth: 36, sleeveOpen: 24, sleeveType: 'setin', closure: 'zip', pocket: 'cargo', overlap: 8 }
+};
+
+const SILHOUETTE_NAMES = { noragi: 'M-NORAGI', bomber: 'M-BOMBER', hoodie: 'M-HOODIE', parka: 'M-PARKA' };
+const SILHOUETTE_CODES = { noragi: 'M-NRG-001', bomber: 'M-BMB-001', hoodie: 'M-HOD-001', parka: 'M-PRK-001' };
+
+function getCW() { return COLORWAYS.find(c => c.id === state.colorway); }
+function getFabric() { return FABRICS.find(f => f.id === state.fabric); }
+function getName() { return SILHOUETTE_NAMES[state.silhouette]; }
+function getCode() { return SILHOUETTE_CODES[state.silhouette]; }
+
+// =====================================================
+// INIT UI
+// =====================================================
+function buildPickers() {
+  const cwGrid = document.getElementById('cwGrid');
+  cwGrid.innerHTML = COLORWAYS.map(cw => `<button class="cw-btn ${cw.id === state.colorway ? 'active' : ''}" data-cw="${cw.id}" data-name="${cw.name}" style="background: linear-gradient(135deg, ${cw.primary} 0%, ${cw.primary} 60%, ${cw.accent} 60%, ${cw.accent} 100%);" title="${cw.name}"></button>`).join('');
+  cwGrid.querySelectorAll('.cw-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.colorway = btn.dataset.cw;
+      cwGrid.querySelectorAll('.cw-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+
+  const swatchPatterns = {
+    cross: 'background-image: linear-gradient(0deg, #444 1px, transparent 1px), linear-gradient(90deg, #444 1px, transparent 1px); background-color: #6c6960;',
+    twill: 'background-image: repeating-linear-gradient(45deg, #555 0 2px, #6c6960 2px 5px);',
+    smooth: 'background-image: linear-gradient(135deg, #6c6960 0%, #4a4843 100%);',
+    dense: 'background-image: linear-gradient(0deg, #2a2725 1px, transparent 1px), linear-gradient(90deg, #2a2725 1px, transparent 1px); background-color: #4a4540;',
+    mesh: 'background-image: radial-gradient(circle, #2a2725 1px, transparent 1.5px); background-color: #8a857a;'
+  };
+  const fbGrid = document.getElementById('fabricGrid');
+  fbGrid.innerHTML = FABRICS.map(f => `<button class="fb-btn ${f.id === state.fabric ? 'active' : ''}" data-fb="${f.id}"><div class="fb-swatch" style="${swatchPatterns[f.pattern]}"></div><div class="fb-name">${f.name}</div><div class="fb-spec">${f.spec}</div></button>`).join('');
+  fbGrid.querySelectorAll('.fb-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.fabric = btn.dataset.fb;
+      fbGrid.querySelectorAll('.fb-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    });
+  });
+}
+
+function bindControls() {
+  ['bodyLength','bodyWidth','overlap','sleeveLength','sleeveDepth','sleeveOpen'].forEach(id => {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => {
+      state[id] = parseInt(el.value);
+      document.getElementById(id+'-val').textContent = state[id];
+      render();
+    });
+  });
+
+  document.querySelectorAll('.toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group = btn.dataset.toggle;
+      document.querySelectorAll('.toggle[data-toggle="'+group+'"]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state[group] = btn.dataset.val;
+      if (group === 'graphic') {
+        document.getElementById('aiSection').style.display = state.graphic === 'ai' ? 'block' : 'none';
+      }
+      render();
+    });
+  });
+
+  document.querySelectorAll('.silo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.silo-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.silhouette = btn.dataset.silo;
+      applySilhouetteDefaults();
+      render();
+    });
+  });
+
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.size = btn.dataset.size;
+      render();
+    });
+  });
+
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelector('.tab-panel[data-panel="'+btn.dataset.tab+'"]').classList.add('active');
+      state.view = btn.dataset.tab;
+      if (state.view === 'three') setTimeout(() => { resizeThree(); buildThreeGarment(); }, 100);
+      render();
+    });
+  });
+}
+
+function applySilhouetteDefaults() {
+  const d = SILHOUETTE_DEFAULTS[state.silhouette];
+  Object.assign(state, d);
+  syncAllUI();
+  document.getElementById('overlapControl').style.display = state.silhouette === 'noragi' ? 'block' : 'none';
+}
+
+function syncAllUI() {
+  document.querySelectorAll('.silo-btn').forEach(b => b.classList.toggle('active', b.dataset.silo === state.silhouette));
+  ['bodyLength','bodyWidth','overlap','sleeveLength','sleeveDepth','sleeveOpen'].forEach(id => {
+    document.getElementById(id).value = state[id];
+    document.getElementById(id+'-val').textContent = state[id];
+  });
+  ['sleeveType','closure','pocket','graphic'].forEach(group => {
+    document.querySelectorAll('.toggle[data-toggle="'+group+'"]').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === state[group]);
+    });
+  });
+  document.querySelectorAll('.cw-btn').forEach(b => b.classList.toggle('active', b.dataset.cw === state.colorway));
+  document.querySelectorAll('.fb-btn').forEach(b => b.classList.toggle('active', b.dataset.fb === state.fabric));
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.toggle('active', b.dataset.size === state.size));
+  document.getElementById('overlapControl').style.display = state.silhouette === 'noragi' ? 'block' : 'none';
+  document.getElementById('aiSection').style.display = state.graphic === 'ai' ? 'block' : 'none';
+}
+
+// =====================================================
+// SIZE GRADING
+// =====================================================
+function getGradedMeasurements(size) {
+  const g = GRADE_RULES[size];
+  return {
+    bodyLength: state.bodyLength + g.length,
+    bodyWidth: state.bodyWidth + g.body,
+    sleeveLength: state.sleeveLength + g.sleeveLen,
+    sleeveDepth: state.sleeveDepth + g.sleeveD,
+    sleeveOpen: state.sleeveOpen + g.cuff
+  };
+}
+
+function renderSizesPanel() {
+  const sizes = ['XS','S','M','L','XL','XXL'];
+  let html = `
+    <div style="margin-bottom: 12px; font-size: 11px; color: var(--soft); letter-spacing: 0.05em; line-height: 1.6;">
+      Base size <b style="color:var(--ink); letter-spacing:0.1em;">${state.size}</b>. Other sizes graded with industry-standard rules (±4cm body width, ±2cm length, ±3cm sleeve per step).
+    </div>
+    <table class="size-grade-table">
+      <thead>
+        <tr>
+          <th></th>
+  `;
+  sizes.forEach(s => { html += `<th>${s}</th>`; });
+  html += '</tr></thead><tbody>';
+  const fields = [
+    { key: 'bodyLength', label: 'Body L' },
+    { key: 'bodyWidth', label: 'Body W' },
+    { key: 'sleeveLength', label: 'Sleeve L' },
+    { key: 'sleeveDepth', label: 'Bicep' },
+    { key: 'sleeveOpen', label: 'Cuff' }
+  ];
+  fields.forEach(f => {
+    html += `<tr><td class="measurement">${f.label}</td>`;
+    sizes.forEach(s => {
+      const m = getGradedMeasurements(s);
+      const cls = s === state.size ? 'current-size' : '';
+      html += `<td>${m[f.key]}<small style="color:var(--soft); letter-spacing:0.1em; margin-left:2px; font-size:8.5px;">cm</small></td>`;
+    });
+    html += '</tr>';
+  });
+  // Yardage row
+  html += `<tr><td class="measurement">Yard @54"</td>`;
+  sizes.forEach(s => {
+    const m = getGradedMeasurements(s);
+    const area = ((m.bodyLength*m.bodyWidth + m.sleeveLength*m.sleeveDepth*2) * 1.25) / 10000;
+    const yd = area / 1.28;
+    html += `<td>${yd.toFixed(2)}</td>`;
+  });
+  html += '</tr>';
+  // Cost row
+  const f = getFabric();
+  html += `<tr><td class="measurement">Mat. Cost</td>`;
+  sizes.forEach(s => {
+    const m = getGradedMeasurements(s);
+    const area = ((m.bodyLength*m.bodyWidth + m.sleeveLength*m.sleeveDepth*2) * 1.25) / 10000;
+    const yd = area / 1.28;
+    html += `<td>$${(yd * f.cost).toFixed(0)}</td>`;
+  });
+  html += '</tr></tbody></table>';
+  html += `
+    <div class="note" style="margin-top: 14px;">
+      Sample makers and factories use these grade-rules. Copy this table into your tech pack's "size chart" section. Most techwear brands launch with S–XL (4 sizes) and add XS/XXL after validating demand.
+    </div>
+  `;
+  // Highlight current size column
+  document.getElementById('sizesPanel').innerHTML = html;
+  // Add highlighting for the current-size column
+  const ths = document.querySelectorAll('.size-grade-table th');
+  const idx = sizes.indexOf(state.size) + 1;
+  ths.forEach((th, i) => { if (i === idx) th.style.background = 'var(--accent)'; });
+}
+
+// =====================================================
+// GRAPHIC HELPERS — supports drag/resize + AI
+// =====================================================
+function graphicSVG(x, y, w, h, opts={}) {
+  const cw = getCW();
+  if (state.graphic === 'off') return '';
+
+  // AI-generated graphic
+  if (state.graphic === 'ai' && state.aiGraphic) {
+    return `<g transform="translate(${x},${y})"><svg width="${w}" height="${h}" viewBox="0 0 400 200" preserveAspectRatio="xMidYMid meet">${state.aiGraphic}</svg></g>`;
+  }
+  if (state.graphic === 'ai' && !state.aiGraphic) {
+    return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${cw.graphic}" stroke-width="1" stroke-dasharray="4 4"/><text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" fill="${cw.graphic}" font-size="11" font-family="JetBrains Mono" letter-spacing="2" opacity="0.6">// AI GRAPHIC · ENTER PROMPT</text></g>`;
+  }
+
+  const gtxt = opts.color || cw.graphic;
+  const accentC = opts.accent || cw.accent;
+  const batch = String(Math.floor(Math.random()*900+100)).padStart(3,'0');
+  const cy = y + h/2, cx = x + w/2;
+
+  if (state.graphic === 'milspec') {
+    return `<g>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="${gtxt}" stroke-width="0.8"/>
+      <text x="${cx}" y="${y + h*0.22}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.13}" font-weight="900" font-family="Archivo" letter-spacing="2">${getName()}</text>
+      <line x1="${x + w*0.15}" y1="${y + h*0.32}" x2="${x + w*0.85}" y2="${y + h*0.32}" stroke="${gtxt}" stroke-width="0.6"/>
+      <text x="${cx}" y="${y + h*0.45}" text-anchor="middle" fill="${accentC}" font-size="${h*0.06}" font-weight="700" font-family="JetBrains Mono" letter-spacing="1.5">// TYPE 1.0 · ${state.silhouette.toUpperCase()}-SERIES</text>
+      <text x="${cx}" y="${y + h*0.58}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.05}" font-family="JetBrains Mono" letter-spacing="0.5">SPEC ${batch}/2026 · IDN-NYC</text>
+      <text x="${cx}" y="${y + h*0.72}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.04}" font-family="JetBrains Mono" letter-spacing="1">${getCW().name} · ${getFabric().name.toUpperCase()}</text>
+      <line x1="${x + w*0.25}" y1="${y + h*0.82}" x2="${x + w*0.75}" y2="${y + h*0.82}" stroke="${gtxt}" stroke-width="0.4"/>
+      <text x="${cx}" y="${y + h*0.92}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.04}" font-family="JetBrains Mono" letter-spacing="2">EST.2026 · ZT/STUDIO</text>
+    </g>`;
+  }
+  if (state.graphic === 'mecha') {
+    return `<g>
+      <text x="${cx}" y="${y + h*0.18}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.1}" font-weight="900" font-family="Archivo" letter-spacing="3">${getName()}</text>
+      <g stroke="${gtxt}" stroke-width="0.6" fill="none">
+        <rect x="${x + w*0.2}" y="${y + h*0.3}" width="${w*0.6}" height="${h*0.4}"/>
+        <line x1="${x + w*0.2}" y1="${y + h*0.5}" x2="${x + w*0.8}" y2="${y + h*0.5}"/>
+        <line x1="${x + w*0.5}" y1="${y + h*0.3}" x2="${x + w*0.5}" y2="${y + h*0.7}"/>
+        <circle cx="${x + w*0.35}" cy="${y + h*0.4}" r="${h*0.025}" fill="${accentC}"/>
+        <circle cx="${x + w*0.65}" cy="${y + h*0.6}" r="${h*0.025}" fill="${accentC}"/>
+      </g>
+      <text x="${x + w*0.22}" y="${y + h*0.36}" fill="${gtxt}" font-size="${h*0.04}" font-family="JetBrains Mono">UNIT-A</text>
+      <text x="${x + w*0.55}" y="${y + h*0.56}" fill="${gtxt}" font-size="${h*0.04}" font-family="JetBrains Mono">UNIT-B</text>
+      <text x="${cx}" y="${y + h*0.82}" text-anchor="middle" fill="${accentC}" font-size="${h*0.05}" font-weight="700" font-family="JetBrains Mono" letter-spacing="1.5">// CHASSIS ${batch}</text>
+      <text x="${cx}" y="${y + h*0.92}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.035}" font-family="JetBrains Mono" letter-spacing="1.5">${state.silhouette.toUpperCase()}/${getCW().name}/2026</text>
+    </g>`;
+  }
+  if (state.graphic === 'type') {
+    return `<g>
+      <text x="${cx}" y="${y + h*0.42}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.32}" font-weight="900" font-family="Archivo" letter-spacing="-0.04em">${state.silhouette.toUpperCase()}</text>
+      <text x="${cx}" y="${y + h*0.6}" text-anchor="middle" fill="${accentC}" font-size="${h*0.08}" font-weight="700" font-family="JetBrains Mono" letter-spacing="6">M·STUDIO</text>
+      <line x1="${x + w*0.1}" y1="${y + h*0.72}" x2="${x + w*0.9}" y2="${y + h*0.72}" stroke="${gtxt}" stroke-width="0.6"/>
+      <text x="${cx}" y="${y + h*0.83}" text-anchor="middle" fill="${gtxt}" font-size="${h*0.045}" font-family="JetBrains Mono" letter-spacing="2">TYPE 1.0 // EST.2026 // ${getCW().name}</text>
+    </g>`;
+  }
+  return '';
+}
+
+// =====================================================
+// GARMENT RENDERERS
+// =====================================================
+function garmentNoragi(cxL, cyL, isBack, s, cw, gzBounds) {
+  const halfB = (state.bodyWidth/2)*s, bL = state.bodyLength*s;
+  const slvL = state.sleeveLength*s, slvDp = state.sleeveDepth*s;
+  const ovr = state.overlap*s;
+  const topY = cyL - bL/2;
+  let g = '';
+  const Lout = cxL - halfB - slvL, Rout = cxL + halfB + slvL;
+  const sleeveBot = topY + slvDp, bodyBot = topY + bL;
+  g += `<path d="M ${Lout} ${topY} L ${Rout} ${topY} L ${Rout} ${sleeveBot} L ${cxL+halfB} ${sleeveBot} L ${cxL+halfB} ${bodyBot} L ${cxL-halfB} ${bodyBot} L ${cxL-halfB} ${sleeveBot} L ${Lout} ${sleeveBot} Z" fill="${cw.primary}" stroke="${C.ink}" stroke-width="1.6"/>`;
+  g += `<line x1="${cxL-halfB}" y1="${topY}" x2="${cxL-halfB}" y2="${sleeveBot}" stroke="${C.ink}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+  g += `<line x1="${cxL+halfB}" y1="${topY}" x2="${cxL+halfB}" y2="${sleeveBot}" stroke="${C.ink}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+
+  if (!isBack) {
+    const neckW = halfB*0.4, neckDepth = bL*0.13;
+    g += `<path d="M ${cxL-neckW-4} ${topY+10} L ${cxL} ${topY+neckDepth+5} L ${cxL+neckW+4} ${topY+10}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1.2"/>`;
+    g += `<path d="M ${cxL} ${topY+neckDepth+5} L ${cxL-ovr} ${bodyBot}" stroke="${C.ink}" stroke-width="1.2" fill="none"/>`;
+    if (state.closure === 'tie') {
+      const ty = topY + bL*0.36;
+      g += `<line x1="${cxL-ovr*0.5}" y1="${ty}" x2="${cxL+ovr*0.5}" y2="${ty}" stroke="${cw.accent}" stroke-width="1.3"/>`;
+      g += `<circle cx="${cxL-ovr*0.5}" cy="${ty}" r="2.5" fill="${cw.accent}"/>`;
+      g += `<circle cx="${cxL+ovr*0.5}" cy="${ty}" r="2.5" fill="${cw.accent}"/>`;
+    }
+    if (state.pocket === 'patch') {
+      const pkY = topY + bL*0.6, pkW = halfB*0.55, pkH = bL*0.14;
+      g += `<rect x="${cxL-halfB*0.88}" y="${pkY}" width="${pkW}" height="${pkH}" fill="none" stroke="${C.ink}" stroke-width="1"/>`;
+      g += `<rect x="${cxL+halfB*0.33}" y="${pkY}" width="${pkW}" height="${pkH}" fill="none" stroke="${C.ink}" stroke-width="1"/>`;
+    }
+  } else if (gzBounds) {
+    gzBounds.bodyX = cxL - halfB;
+    gzBounds.bodyY = topY;
+    gzBounds.bodyW = halfB * 2;
+    gzBounds.bodyH = bL;
+  }
+  return g;
+}
+
+function garmentBomber(cxL, cyL, isBack, s, cw, opts={}, gzBounds=null) {
+  const halfB = (state.bodyWidth/2)*s, bL = state.bodyLength*s;
+  const slvL = state.sleeveLength*s, slvDp = state.sleeveDepth*s;
+  const cuff = (state.sleeveOpen/2)*s;
+  const topY = cyL - bL/2;
+  const hasHood = opts.hood || false;
+  const isParka = opts.parka || false;
+  const ribHeight = isParka ? 0 : bL*0.08;
+  const collarH = bL*0.06;
+  const taper = isParka ? 0 : halfB*0.08;
+  let g = '';
+  const bodyTop = topY + collarH;
+  const bodyEndY = topY + bL - ribHeight;
+  let shoulderTopY = topY + collarH;
+  let armholeY = shoulderTopY + (state.sleeveType === 'raglan' ? slvDp*0.7 : slvDp*0.5);
+  const bodyPath = `M ${cxL-halfB} ${bodyTop} L ${cxL+halfB} ${bodyTop} L ${cxL+halfB-taper} ${bodyEndY} L ${cxL-halfB+taper} ${bodyEndY} Z`;
+  g += `<path d="${bodyPath}" fill="${cw.primary}" stroke="${C.ink}" stroke-width="1.6"/>`;
+  const slvAngle = state.sleeveType === 'raglan' ? 0.15 : (state.sleeveType === 'setin' ? 0.08 : 0.0);
+  const lShoulder = cxL - halfB;
+  const lCuffX = lShoulder - slvL;
+  const lCuffY = shoulderTopY + slvL*slvAngle + slvDp*0.3;
+  g += `<path d="M ${lShoulder} ${shoulderTopY} L ${lShoulder} ${armholeY} L ${lCuffX} ${lCuffY + cuff*1.2} L ${lCuffX} ${lCuffY} Z" fill="${cw.primary}" stroke="${C.ink}" stroke-width="1.6"/>`;
+  const rShoulder = cxL + halfB;
+  const rCuffX = rShoulder + slvL;
+  const rCuffY = lCuffY;
+  g += `<path d="M ${rShoulder} ${shoulderTopY} L ${rShoulder} ${armholeY} L ${rCuffX} ${rCuffY + cuff*1.2} L ${rCuffX} ${rCuffY} Z" fill="${cw.primary}" stroke="${C.ink}" stroke-width="1.6"/>`;
+
+  if (state.sleeveType === 'raglan') {
+    g += `<line x1="${cxL-halfB*0.3}" y1="${bodyTop}" x2="${cxL-halfB}" y2="${armholeY}" stroke="${C.ink}" stroke-width="0.7" stroke-dasharray="2 2"/>`;
+    g += `<line x1="${cxL+halfB*0.3}" y1="${bodyTop}" x2="${cxL+halfB}" y2="${armholeY}" stroke="${C.ink}" stroke-width="0.7" stroke-dasharray="2 2"/>`;
+  }
+  if (ribHeight > 0) {
+    g += `<rect x="${cxL-halfB+taper}" y="${bodyEndY}" width="${halfB*2-taper*2}" height="${ribHeight}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1.4"/>`;
+    for (let i = 1; i < 14; i++) {
+      const rx = cxL-halfB+taper + (halfB*2-taper*2) * i/14;
+      g += `<line x1="${rx}" y1="${bodyEndY+1}" x2="${rx}" y2="${bodyEndY+ribHeight-1}" stroke="${C.ink}" stroke-width="0.4" opacity="0.4"/>`;
+    }
+  }
+  const cuffH = ribHeight > 0 ? ribHeight*0.8 : 4;
+  g += `<rect x="${lCuffX-2}" y="${lCuffY}" width="${cuffH+4}" height="${cuff*1.2}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1.2"/>`;
+  g += `<rect x="${rCuffX-2}" y="${rCuffY}" width="${cuffH+4}" height="${cuff*1.2}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1.2"/>`;
+
+  if (hasHood) {
+    const hoodW = halfB*0.7, hoodH = halfB*0.7;
+    g += `<path d="M ${cxL-hoodW} ${topY+collarH} Q ${cxL-hoodW*0.9} ${topY-hoodH*0.5} ${cxL} ${topY-hoodH*0.6} Q ${cxL+hoodW*0.9} ${topY-hoodH*0.5} ${cxL+hoodW} ${topY+collarH} Z" fill="${cw.primary}" stroke="${C.ink}" stroke-width="1.6"/>`;
+    if (!isBack) {
+      g += `<line x1="${cxL}" y1="${topY-hoodH*0.6}" x2="${cxL}" y2="${topY+collarH}" stroke="${C.ink}" stroke-width="1"/>`;
+      g += `<circle cx="${cxL-3}" cy="${topY-hoodH*0.3}" r="1.5" fill="${cw.accent}"/>`;
+      g += `<circle cx="${cxL+3}" cy="${topY-hoodH*0.3}" r="1.5" fill="${cw.accent}"/>`;
+    }
+  } else {
+    g += `<rect x="${cxL-halfB*0.5}" y="${topY}" width="${halfB}" height="${collarH}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1.4"/>`;
+  }
+
+  if (!isBack) {
+    if (state.closure === 'zip') {
+      g += `<line x1="${cxL}" y1="${topY+collarH}" x2="${cxL}" y2="${bodyEndY+ribHeight}" stroke="${cw.accent}" stroke-width="1.4" stroke-dasharray="3 2"/>`;
+      g += `<rect x="${cxL-3}" y="${bodyEndY+ribHeight-12}" width="6" height="6" fill="${cw.accent}" stroke="${C.ink}" stroke-width="0.6"/>`;
+    } else if (state.closure === 'snap') {
+      for (let i=1; i<=4; i++) {
+        const sy = topY + collarH + (bodyEndY - topY - collarH) * i/5;
+        g += `<circle cx="${cxL}" cy="${sy}" r="2.8" fill="none" stroke="${cw.accent}" stroke-width="1.2"/>`;
+        g += `<circle cx="${cxL}" cy="${sy}" r="0.8" fill="${cw.accent}"/>`;
+      }
+    }
+    if (state.pocket === 'welt') {
+      const pkY = topY + bL*0.6;
+      g += `<line x1="${cxL-halfB*0.7}" y1="${pkY}" x2="${cxL-halfB*0.18}" y2="${pkY}" stroke="${C.ink}" stroke-width="1.4"/>`;
+      g += `<line x1="${cxL+halfB*0.18}" y1="${pkY}" x2="${cxL+halfB*0.7}" y2="${pkY}" stroke="${C.ink}" stroke-width="1.4"/>`;
+    } else if (state.pocket === 'patch') {
+      const pkY = topY + bL*0.6, pkW = halfB*0.5, pkH = bL*0.14;
+      g += `<rect x="${cxL-halfB*0.78}" y="${pkY}" width="${pkW}" height="${pkH}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1"/>`;
+      g += `<rect x="${cxL+halfB*0.28}" y="${pkY}" width="${pkW}" height="${pkH}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1"/>`;
+    } else if (state.pocket === 'cargo') {
+      const ch = halfB*0.4, cw_ = halfB*0.45;
+      [[-halfB*0.78, topY+bL*0.28], [halfB*0.33, topY+bL*0.28], [-halfB*0.78, topY+bL*0.6], [halfB*0.33, topY+bL*0.6]].forEach(([dx, py]) => {
+        g += `<rect x="${cxL+dx}" y="${py}" width="${cw_}" height="${ch}" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="1"/>`;
+      });
+    }
+    if (state.graphic !== 'off') {
+      const sgX = lCuffX + slvL*0.15;
+      const sgY = lCuffY + cuff*0.2;
+      g += `<rect x="${sgX}" y="${sgY}" width="${slvL*0.45}" height="${cuff*0.6}" fill="${cw.accent}" opacity="0.85"/>`;
+      g += `<text x="${sgX + slvL*0.225}" y="${sgY + cuff*0.42}" text-anchor="middle" fill="${cw.primary}" font-size="${cuff*0.3}" font-weight="900" font-family="Archivo" letter-spacing="1">M-${state.silhouette.substring(0,3).toUpperCase()}</text>`;
+    }
+  } else if (gzBounds) {
+    gzBounds.bodyX = cxL - halfB;
+    gzBounds.bodyY = bodyTop;
+    gzBounds.bodyW = halfB * 2;
+    gzBounds.bodyH = bodyEndY - bodyTop;
+  }
+  return g;
+}
+
+function garmentParka(cxL, cyL, isBack, s, cw, gz) { return garmentBomber(cxL, cyL, isBack, s, cw, { hood: true, parka: true }, gz); }
+function garmentHoodie(cxL, cyL, isBack, s, cw, gz) { return garmentBomber(cxL, cyL, isBack, s, cw, { hood: true }, gz); }
+
+// =====================================================
+// GARMENT VIEW with DRAGGABLE GRAPHIC ZONE
+// =====================================================
+function renderGarment() {
+  const svg = document.getElementById('garmentSvg');
+  const vbW = 800, vbH = 600;
+  svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+  const cw = getCW();
+  const totalW = state.bodyWidth + state.sleeveLength*2;
+  const totalH = state.bodyLength + (state.silhouette === 'parka' || state.silhouette === 'hoodie' ? 30 : 10);
+  const maxH = 460, maxW = 320;
+  const s = Math.min(maxW / totalW, maxH / totalH);
+
+  let g = `<rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${C.paper}"/>`;
+  g += `<text x="30" y="36" fill="${C.soft}" font-size="9" font-family="JetBrains Mono" letter-spacing="2.5" font-weight="700">GARMENT ELEVATION · AS WORN · NTS</text>`;
+  g += `<text x="${vbW-30}" y="36" text-anchor="end" fill="${C.ink}" font-size="14" font-family="Archivo" font-weight="900">${getName()} · ${state.size}</text>`;
+  g += `<line x1="30" y1="46" x2="${vbW-30}" y2="46" stroke="${C.ink}" stroke-width="0.6"/>`;
+  g += `<text x="30" y="60" fill="${C.soft}" font-size="7.5" font-family="JetBrains Mono" letter-spacing="2">${getCode()}.A · ${cw.name} · ${getFabric().name.toUpperCase()}</text>`;
+
+  const renderer = { noragi: garmentNoragi, bomber: garmentBomber, hoodie: garmentHoodie, parka: garmentParka }[state.silhouette];
+  const gzBounds = {};
+  g += renderer(220, 320, false, s, cw, gzBounds);
+  g += renderer(580, 320, true, s, cw, gzBounds);
+
+  // graphic zone on back panel — use draggable rect
+  if (state.graphic !== 'off' && gzBounds.bodyW) {
+    const gzX = gzBounds.bodyX + state.graphicZone.x * gzBounds.bodyW - (state.graphicZone.w * gzBounds.bodyW)/2;
+    const gzY = gzBounds.bodyY + state.graphicZone.y * gzBounds.bodyH;
+    const gzW = state.graphicZone.w * gzBounds.bodyW;
+    const gzH = state.graphicZone.h * gzBounds.bodyH;
+    g += graphicSVG(gzX, gzY, gzW, gzH);
+    // draggable handle
+    g += `<rect id="gzDrag" class="gz-handle" x="${gzX}" y="${gzY}" width="${gzW}" height="${gzH}" fill="rgba(255,214,10,0.0)" stroke="${C.accent}" stroke-width="0.7" stroke-dasharray="3 3" opacity="0.6" cursor="move" data-gx="${gzBounds.bodyX}" data-gy="${gzBounds.bodyY}" data-gw="${gzBounds.bodyW}" data-gh="${gzBounds.bodyH}"/>`;
+    g += `<rect id="gzResize" class="gz-resize" x="${gzX+gzW-6}" y="${gzY+gzH-6}" width="8" height="8" fill="${C.accent}" cursor="nwse-resize"/>`;
+  }
+
+  g += `<line x1="400" y1="100" x2="400" y2="520" stroke="${C.soft}" stroke-width="0.4" stroke-dasharray="2 4"/>`;
+  g += `<rect x="190" y="540" width="60" height="14" fill="${C.paper}" stroke="${C.ink}" stroke-width="1"/>`;
+  g += `<text x="220" y="550" text-anchor="middle" fill="${C.ink}" font-size="9" font-weight="700" font-family="JetBrains Mono" letter-spacing="1.5">FRONT</text>`;
+  g += `<rect x="550" y="540" width="60" height="14" fill="${C.ink}" stroke="${C.ink}" stroke-width="1"/>`;
+  g += `<text x="580" y="550" text-anchor="middle" fill="${C.paper}" font-size="9" font-weight="700" font-family="JetBrains Mono" letter-spacing="1.5">BACK</text>`;
+
+  g += drawCornerStamp(vbW - 145, vbH - 56, `VIEW · F+B ELEV.`, `CW · ${cw.name}`);
+  svg.innerHTML = g;
+
+  setupGraphicDrag();
+}
+
+function setupGraphicDrag() {
+  const svg = document.getElementById('garmentSvg');
+  const dragRect = document.getElementById('gzDrag');
+  const resizeRect = document.getElementById('gzResize');
+  if (!dragRect) return;
+
+  let mode = null, startX = 0, startY = 0, startGZ = null, bounds = null;
+
+  function getSvgCoords(e) {
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX || (e.touches && e.touches[0].clientX);
+    pt.y = e.clientY || (e.touches && e.touches[0].clientY);
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function start(target, e) {
+    e.preventDefault();
+    mode = target;
+    const p = getSvgCoords(e);
+    startX = p.x; startY = p.y;
+    startGZ = {...state.graphicZone};
+    bounds = {
+      x: parseFloat(dragRect.dataset.gx),
+      y: parseFloat(dragRect.dataset.gy),
+      w: parseFloat(dragRect.dataset.gw),
+      h: parseFloat(dragRect.dataset.gh)
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+  }
+
+  function move(e) {
+    if (!mode) return;
+    const p = getSvgCoords(e);
+    const dx = p.x - startX, dy = p.y - startY;
+    if (mode === 'drag') {
+      state.graphicZone.x = Math.max(state.graphicZone.w/2, Math.min(1 - state.graphicZone.w/2, startGZ.x + dx / bounds.w));
+      state.graphicZone.y = Math.max(0, Math.min(1 - state.graphicZone.h, startGZ.y + dy / bounds.h));
+    } else if (mode === 'resize') {
+      state.graphicZone.w = Math.max(0.2, Math.min(1, startGZ.w + (dx*2) / bounds.w));
+      state.graphicZone.h = Math.max(0.1, Math.min(0.8, startGZ.h + dy / bounds.h));
+    }
+    renderGarment();
+  }
+
+  function end() {
+    mode = null;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+  }
+
+  dragRect.addEventListener('pointerdown', e => start('drag', e));
+  resizeRect.addEventListener('pointerdown', e => start('resize', e));
+}
+
+// =====================================================
+// FLAT PATTERN
+// =====================================================
+function renderPattern() {
+  const svg = document.getElementById('patternSvg');
+  const totalWcm = state.bodyWidth + state.sleeveLength*2 + 24;
+  const totalHcm = state.bodyLength + state.sleeveDepth + 60;
+  const vbW = 800;
+  const vbH = Math.max(580, totalHcm * (vbW / totalWcm) * 0.95);
+  svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+  const s = Math.min((vbW - 100) / totalWcm, (vbH - 100) / totalHcm);
+  const cx = vbW/2, topY = 50;
+  const halfB = (state.bodyWidth/2)*s, bL = state.bodyLength*s;
+  const slv = state.sleeveLength*s, slvD = state.sleeveDepth*s;
+  const isNoragi = state.silhouette === 'noragi';
+  let g = `<rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${C.paper}"/>`;
+  g += `<text x="30" y="32" fill="${C.soft}" font-size="9" font-family="JetBrains Mono" letter-spacing="2.5" font-weight="700">FLAT PATTERN · CUT LAYOUT · 1:${Math.round(1/s)}</text>`;
+  g += `<text x="${vbW-30}" y="32" text-anchor="end" fill="${C.ink}" font-size="12" font-family="Archivo" font-weight="900">${getName()} · ${state.size}</text>`;
+  const backX = cx - halfB;
+  const sleeveTopY = topY + 12;
+  if (isNoragi) {
+    g += `<rect x="${backX}" y="${topY}" width="${halfB*2}" height="${bL}" fill="${C.pieceFill}" stroke="${C.ink}" stroke-width="1.4"/>`;
+    g += `<line x1="${cx}" y1="${topY}" x2="${cx}" y2="${topY+bL}" stroke="${C.ink}" stroke-width="0.7" stroke-dasharray="5 3"/>`;
+    g += `<text x="${cx}" y="${topY + bL/2 - 4}" text-anchor="middle" fill="${C.ink}" font-size="11" font-weight="700" font-family="Archivo" letter-spacing="1.5">BACK + FRONTS</text>`;
+    g += `<text x="${cx}" y="${topY + bL/2 + 10}" text-anchor="middle" fill="${C.soft}" font-size="8" font-family="JetBrains Mono" letter-spacing="0.5">CUT 1 ON FOLD</text>`;
+  } else {
+    g += `<rect x="${backX}" y="${topY}" width="${halfB*2}" height="${bL}" fill="${C.pieceFill}" stroke="${C.ink}" stroke-width="1.4"/>`;
+    g += `<text x="${cx}" y="${topY + bL/2 - 4}" text-anchor="middle" fill="${C.ink}" font-size="11" font-weight="700" font-family="Archivo" letter-spacing="1.5">BACK</text>`;
+    g += `<text x="${cx}" y="${topY + bL/2 + 10}" text-anchor="middle" fill="${C.soft}" font-size="8" font-family="JetBrains Mono" letter-spacing="0.5">CUT 1</text>`;
+  }
+  const grainY1 = topY + bL*0.15, grainY2 = topY + bL*0.85;
+  g += `<line x1="${backX+16}" y1="${grainY1}" x2="${backX+16}" y2="${grainY2}" stroke="${C.soft}" stroke-width="0.6"/>`;
+  g += `<polygon points="${backX+13},${grainY1+5} ${backX+19},${grainY1+5} ${backX+16},${grainY1}" fill="${C.soft}"/>`;
+  g += `<polygon points="${backX+13},${grainY2-5} ${backX+19},${grainY2-5} ${backX+16},${grainY2}" fill="${C.soft}"/>`;
+  g += `<text x="${backX+22}" y="${(grainY1+grainY2)/2}" fill="${C.soft}" font-size="7" font-family="JetBrains Mono" dominant-baseline="middle" letter-spacing="1">GRAIN</text>`;
+  const leftSlvX = backX - slv;
+  g += `<rect x="${leftSlvX}" y="${sleeveTopY}" width="${slv}" height="${slvD}" fill="${C.pieceFill}" stroke="${C.ink}" stroke-width="1.4"/>`;
+  if (state.sleeveType === 'raglan') g += `<line x1="${leftSlvX + slv}" y1="${sleeveTopY}" x2="${leftSlvX + slv - slvD*0.6}" y2="${sleeveTopY + slvD*0.4}" stroke="${C.ink}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+  g += `<text x="${leftSlvX + slv/2}" y="${sleeveTopY + slvD/2 - 2}" text-anchor="middle" fill="${C.ink}" font-size="10" font-weight="700" font-family="Archivo" letter-spacing="1">SLEEVE L</text>`;
+  g += `<text x="${leftSlvX + slv/2}" y="${sleeveTopY + slvD/2 + 10}" text-anchor="middle" fill="${C.soft}" font-size="7" font-family="JetBrains Mono">CUT 1 · ${state.sleeveType.toUpperCase()}</text>`;
+  const rightSlvX = backX + halfB*2;
+  g += `<rect x="${rightSlvX}" y="${sleeveTopY}" width="${slv}" height="${slvD}" fill="${C.pieceFill}" stroke="${C.ink}" stroke-width="1.4"/>`;
+  if (state.sleeveType === 'raglan') g += `<line x1="${rightSlvX}" y1="${sleeveTopY}" x2="${rightSlvX + slvD*0.6}" y2="${sleeveTopY + slvD*0.4}" stroke="${C.ink}" stroke-width="0.6" stroke-dasharray="2 2"/>`;
+  g += `<text x="${rightSlvX + slv/2}" y="${sleeveTopY + slvD/2 - 2}" text-anchor="middle" fill="${C.ink}" font-size="10" font-weight="700" font-family="Archivo" letter-spacing="1">SLEEVE R</text>`;
+  g += `<text x="${rightSlvX + slv/2}" y="${sleeveTopY + slvD/2 + 10}" text-anchor="middle" fill="${C.soft}" font-size="7" font-family="JetBrains Mono">MIRROR L</text>`;
+  if (state.graphic !== 'off') {
+    const gzW = halfB*1.4, gzH = bL*0.32;
+    const gzX = cx - gzW/2, gzY = topY + bL*0.18;
+    g += `<rect x="${gzX}" y="${gzY}" width="${gzW}" height="${gzH}" fill="rgba(255,214,10,0.32)" stroke="${C.ink}" stroke-width="0.6" stroke-dasharray="3 2"/>`;
+    g += `<text x="${gzX + gzW/2}" y="${gzY + 12}" text-anchor="middle" fill="${C.accent}" font-size="8" font-weight="700" font-family="JetBrains Mono" letter-spacing="1.5">GRAPHIC ZONE</text>`;
+  }
+  const cxR = backX + halfB*2 + 22;
+  g += `<line x1="${cxR}" y1="${topY}" x2="${cxR}" y2="${topY+bL}" stroke="${C.accent}" stroke-width="0.7"/>`;
+  g += `<line x1="${cxR-3}" y1="${topY}" x2="${cxR+3}" y2="${topY}" stroke="${C.accent}" stroke-width="0.7"/>`;
+  g += `<line x1="${cxR-3}" y1="${topY+bL}" x2="${cxR+3}" y2="${topY+bL}" stroke="${C.accent}" stroke-width="0.7"/>`;
+  g += `<text x="${cxR + 5}" y="${topY + bL/2}" fill="${C.accent}" font-size="8" font-weight="700" font-family="JetBrains Mono" dominant-baseline="middle" letter-spacing="0.5">L · ${state.bodyLength}cm</text>`;
+  g += `<line x1="${backX}" y1="${topY - 20}" x2="${backX + halfB*2}" y2="${topY - 20}" stroke="${C.accent}" stroke-width="0.7"/>`;
+  g += `<text x="${cx}" y="${topY - 24}" text-anchor="middle" fill="${C.accent}" font-size="8" font-weight="700" font-family="JetBrains Mono" letter-spacing="0.5">W · ${state.bodyWidth}cm</text>`;
+  g += `<line x1="${leftSlvX}" y1="${sleeveTopY + slvD + 10}" x2="${leftSlvX + slv}" y2="${sleeveTopY + slvD + 10}" stroke="${C.accent}" stroke-width="0.7"/>`;
+  g += `<text x="${leftSlvX + slv/2}" y="${sleeveTopY + slvD + 20}" text-anchor="middle" fill="${C.accent}" font-size="7" font-weight="700" font-family="JetBrains Mono">SLV · ${state.sleeveLength}cm</text>`;
+  g += drawCornerStamp(vbW - 145, vbH - 56, `SCALE · 1:${Math.round(1/s)}`, `UNIT · CM`);
+  svg.innerHTML = g;
+}
+
+function drawCornerStamp(cx, cy, l1, l2) {
+  return `<g transform="translate(${cx}, ${cy})">
+    <rect x="0" y="0" width="130" height="42" fill="none" stroke="${C.ink}" stroke-width="1"/>
+    <line x1="0" y1="14" x2="130" y2="14" stroke="${C.ink}" stroke-width="0.6"/>
+    <text x="6" y="10" fill="${C.ink}" font-size="7" font-family="JetBrains Mono" font-weight="700" letter-spacing="0.5">DWG · ${getCode()}.A</text>
+    <text x="6" y="25" fill="${C.soft}" font-size="6.5" font-family="JetBrains Mono" letter-spacing="0.5">${l1}</text>
+    <text x="6" y="36" fill="${C.soft}" font-size="6.5" font-family="JetBrains Mono" letter-spacing="0.5">${l2}</text>
+  </g>`;
+}
+
+// =====================================================
+// COLORWAY SHEET
+// =====================================================
+function renderColorway() {
+  const svg = document.getElementById('colorwaySvg');
+  const vbW = 800, vbH = 600;
+  svg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
+  let g = `<rect x="0" y="0" width="${vbW}" height="${vbH}" fill="${C.paper}"/>`;
+  g += `<text x="30" y="32" fill="${C.soft}" font-size="9" font-family="JetBrains Mono" letter-spacing="2.5" font-weight="700">COLORWAY SHEET · 4 VARIANTS · FRONT</text>`;
+  g += `<text x="${vbW-30}" y="32" text-anchor="end" fill="${C.ink}" font-size="12" font-family="Archivo" font-weight="900">${getName()}</text>`;
+  g += `<line x1="30" y1="42" x2="${vbW-30}" y2="42" stroke="${C.ink}" stroke-width="0.5"/>`;
+  const positions = [[180, 220], [420, 220], [180, 440], [420, 440]];
+  const showCWs = [COLORWAYS[0], COLORWAYS[1], COLORWAYS[2], COLORWAYS[3]];
+  const renderer = { noragi: garmentNoragi, bomber: garmentBomber, hoodie: garmentHoodie, parka: garmentParka }[state.silhouette];
+  const s = Math.min(180 / (state.bodyWidth + state.sleeveLength*2), 140 / state.bodyLength);
+  showCWs.forEach((cw, i) => {
+    const [px, py] = positions[i];
+    g += `<rect x="${px-110}" y="${py-110}" width="220" height="200" fill="${C.paper}" stroke="${C.ink}" stroke-width="1"/>`;
+    g += `<rect x="${px-110}" y="${py+70}" width="220" height="20" fill="${C.ink}"/>`;
+    g += `<text x="${px}" y="${py+84}" text-anchor="middle" fill="${C.paper}" font-size="9" font-weight="700" font-family="JetBrains Mono" letter-spacing="2">CW-${String(i+1).padStart(2,'0')} · ${cw.name}</text>`;
+    g += renderer(px, py-10, false, s, cw, {});
+    g += `<rect x="${px-105}" y="${py-105}" width="12" height="12" fill="${cw.primary}" stroke="${C.ink}" stroke-width="0.5"/>`;
+    g += `<rect x="${px-92}" y="${py-105}" width="12" height="12" fill="${cw.secondary}" stroke="${C.ink}" stroke-width="0.5"/>`;
+    g += `<rect x="${px-79}" y="${py-105}" width="12" height="12" fill="${cw.accent}" stroke="${C.ink}" stroke-width="0.5"/>`;
+  });
+  g += drawCornerStamp(vbW - 145, vbH - 56, `SHEET · CW-VARIANTS`, `${state.silhouette.toUpperCase()}`);
+  svg.innerHTML = g;
+}
+
+// =====================================================
+// SPEC TABLE & SOURCING
+// =====================================================
+function renderSpec() {
+  const t = document.getElementById('specTable');
+  const bodyArea = state.bodyLength*state.bodyWidth;
+  const sleeveArea = state.sleeveLength*state.sleeveDepth*2;
+  const extras = state.silhouette === 'noragi' ? state.bodyLength*1.4*10 : state.bodyWidth*20;
+  const totalM2 = ((bodyArea + sleeveArea + extras)*1.25) / 10000;
+  const yards = totalM2/1.28;
+  const f = getFabric(), cw = getCW();
+  const specs = [
+    ['Silhouette', getName(), ''],
+    ['Size', state.size, ''],
+    ['Body L × W', `${state.bodyLength}×${state.bodyWidth}`, 'cm'],
+    ['Sleeve', `${state.sleeveLength}/${state.sleeveType}`, 'cm'],
+    ['Cuff', state.sleeveOpen, 'cm'],
+    ['Closure', state.closure.toUpperCase(), ''],
+    ['Pocket', state.pocket.toUpperCase(), ''],
+    ['Colorway', cw.name, ''],
+    ['Fabric', f.name, ''],
+    ['Yardage @54"', yards.toFixed(2), 'yd'],
+    ['Mat. Cost', `$${(yards * f.cost).toFixed(0)}`, ''],
+    ['Graphic', state.graphic === 'ai' ? 'AI/CUSTOM' : state.graphic.toUpperCase(), '']
+  ];
+  t.innerHTML = specs.map(([k,v,u]) => `<div class="spec-cell"><div class="key">${k}</div><div class="v">${v}<span class="unit">${u}</span></div></div>`).join('');
+  document.getElementById('footerRight').textContent = `DOC: ${getCode()}.A · ${state.size} · CW-${cw.name}`;
+}
+
+function renderSourcing() {
+  const f = getFabric();
+  const rows = [
+    { role: 'Fabric', name: f.name, sub: `${f.source} · $${f.cost}/yd`, tag: f.spec.split('·')[0].trim() },
+    { role: 'Hardware', name: 'YKK Aquaguard zipper', sub: 'WAWAK · Zipperstop NYC (27 Allen St)', tag: 'YKK #5' },
+    { role: 'Hardware', name: 'ITW Nexus / Duraflex buckles', sub: 'Rockywoods · direct', tag: 'BUCKLE' },
+    { role: 'Webbing', name: 'Mil-spec polyester webbing', sub: 'Strapworks · Country Brook Design', tag: '1″ MIL-W' },
+    { role: 'Trim', name: 'Woven labels & hangtags', sub: 'Dutch Label Shop · no minimum', tag: 'LABEL' },
+    { role: 'Print', name: state.graphic === 'off' ? 'No print spec' : 'DTF / Screen print on cut panels', sub: 'Jakprints · Real Thread', tag: 'GFX' },
+    { role: 'Sample', name: 'TEG / Fashion Solutions NYC', sub: 'NYC Garment District · 4–8 wk turnaround', tag: 'NYC' },
+    { role: 'Production', name: 'Bandung CMT · Project SGN (HCMC)', sub: 'MOQ 30–100 · 4–8 wk lead time', tag: 'IDN/VN' }
+  ];
+  document.getElementById('sourcingGrid').innerHTML = rows.map(r => `<div class="source-row"><div class="role">${r.role}</div><div class="name">${r.name}<small>${r.sub}</small></div><div class="tag">${r.tag}</div></div>`).join('');
+}
+
+// =====================================================
+// THREE.JS 3D VIEW
+// =====================================================
+let scene, camera, renderer3D, garmentGroup;
+let rotX = 0.1, rotY = 0.2, zoom = 1;
+let threeReady = false;
+
+function initThree() {
+  const container = document.getElementById('threeContainer');
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xf1ede3);
+
+  const w = container.clientWidth, h = container.clientHeight;
+  camera = new THREE.PerspectiveCamera(35, w/h, 1, 2000);
+  camera.position.set(0, 0, 280);
+
+  renderer3D = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer3D.setSize(w, h);
+  renderer3D.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer3D.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const key = new THREE.DirectionalLight(0xffffff, 0.85);
+  key.position.set(40, 80, 100);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+  fill.position.set(-60, -20, 80);
+  scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xd63d2e, 0.18);
+  rim.position.set(0, 0, -100);
+  scene.add(rim);
+
+  // grid floor
+  const gridSize = 600;
+  const gridDiv = 30;
+  const grid = new THREE.GridHelper(gridSize, gridDiv, 0xc0bdb4, 0xc0bdb4);
+  grid.position.y = -120;
+  grid.material.opacity = 0.4;
+  grid.material.transparent = true;
+  scene.add(grid);
+
+  // Manual rotation control
+  let dragging = false, lastX = 0, lastY = 0;
+  const canvasEl = renderer3D.domElement;
+  canvasEl.style.touchAction = 'none';
+  canvasEl.addEventListener('pointerdown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; canvasEl.setPointerCapture(e.pointerId); });
+  canvasEl.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    rotY += (e.clientX - lastX) * 0.008;
+    rotX += (e.clientY - lastY) * 0.008;
+    rotX = Math.max(-1.2, Math.min(1.2, rotX));
+    lastX = e.clientX; lastY = e.clientY;
+    if (garmentGroup) {
+      garmentGroup.rotation.y = rotY;
+      garmentGroup.rotation.x = rotX;
+    }
+  });
+  canvasEl.addEventListener('pointerup', e => { dragging = false; try { canvasEl.releasePointerCapture(e.pointerId); } catch(_) {} });
+  canvasEl.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoom *= e.deltaY > 0 ? 1.08 : 0.92;
+    zoom = Math.max(0.4, Math.min(3, zoom));
+    camera.position.z = 280 * zoom;
+  }, { passive: false });
+
+  threeReady = true;
+  buildThreeGarment();
+  animate3D();
+
+  window.addEventListener('resize', resizeThree);
+}
+
+function resizeThree() {
+  if (!threeReady) return;
+  const container = document.getElementById('threeContainer');
+  const w = container.clientWidth, h = container.clientHeight;
+  if (w === 0 || h === 0) return;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer3D.setSize(w, h);
+}
+
+function animate3D() {
+  requestAnimationFrame(animate3D);
+  if (renderer3D && scene && camera) renderer3D.render(scene, camera);
+}
+
+function buildThreeGarment() {
+  if (!threeReady) return;
+  // Remove existing
+  if (garmentGroup) scene.remove(garmentGroup);
+  garmentGroup = new THREE.Group();
+  garmentGroup.rotation.y = rotY;
+  garmentGroup.rotation.x = rotX;
+
+  const cw = getCW();
+  const mainMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(cw.primary) });
+  const secMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(cw.secondary) });
+  const accentMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(cw.accent) });
+  const seamMat = new THREE.LineBasicMaterial({ color: 0x141414, linewidth: 1, transparent: true, opacity: 0.5 });
+
+  const bw = state.bodyWidth;
+  const bl = state.bodyLength;
+  const sl = state.sleeveLength;
+  const sd = state.sleeveDepth;
+  const so = state.sleeveOpen;
+  const depth = state.silhouette === 'noragi' ? 16 : 22;
+
+  // BODY — slightly tapered box
+  const isParka = state.silhouette === 'parka';
+  const isBomberish = state.silhouette === 'bomber' || state.silhouette === 'hoodie';
+  const taper = isBomberish ? 0.85 : 1;
+
+  // Use BufferGeometry for tapered body
+  const bg = new THREE.BoxGeometry(bw, bl, depth, 1, 1, 1);
+  // taper bottom vertices
+  const pos = bg.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) < 0) {
+      pos.setX(i, pos.getX(i) * taper);
+    }
+  }
+  bg.computeVertexNormals();
+  const body = new THREE.Mesh(bg, mainMat);
+  body.position.y = -bl/2 + bl/2;
+  garmentGroup.add(body);
+  const bodyEdges = new THREE.LineSegments(new THREE.EdgesGeometry(bg, 30), seamMat);
+  body.add(bodyEdges);
+
+  // ribbed hem for bomber/hoodie
+  if (isBomberish) {
+    const ribH = bl*0.08;
+    const ribG = new THREE.BoxGeometry(bw*taper, ribH, depth*1.02);
+    const rib = new THREE.Mesh(ribG, secMat);
+    rib.position.y = -bl/2 + ribH/2;
+    garmentGroup.add(rib);
+  }
+
+  // SLEEVES (tapered cylinders)
+  const sleeveSegs = 16;
+  const sleeveGeom = new THREE.CylinderGeometry(so/2, sd/2, sl, sleeveSegs, 1, false);
+  // rotate cylinder to horizontal
+  sleeveGeom.rotateZ(Math.PI/2);
+
+  // shoulder angle for raglan etc.
+  const slvDownAngle = state.sleeveType === 'raglan' ? 0.4 : (state.sleeveType === 'setin' ? 0.25 : 0.1);
+
+  const leftSleeve = new THREE.Mesh(sleeveGeom, mainMat);
+  leftSleeve.position.set(-bw/2 - sl/2, bl/2 - sd/2, 0);
+  leftSleeve.rotation.z = slvDownAngle;
+  // Adjust position for angle drop
+  leftSleeve.position.x -= Math.cos(slvDownAngle) * 0 ;
+  leftSleeve.position.y -= Math.sin(slvDownAngle) * sl/3;
+  garmentGroup.add(leftSleeve);
+  const leftEdges = new THREE.LineSegments(new THREE.EdgesGeometry(sleeveGeom, 30), seamMat);
+  leftSleeve.add(leftEdges);
+
+  const rightSleeve = leftSleeve.clone();
+  rightSleeve.position.x = bw/2 + sl/2 + Math.cos(slvDownAngle) * 0;
+  rightSleeve.rotation.z = -slvDownAngle;
+  rightSleeve.position.y = leftSleeve.position.y;
+  garmentGroup.add(rightSleeve);
+
+  // CUFFS
+  if (isBomberish) {
+    const cuffGeom = new THREE.CylinderGeometry(so/2 + 0.5, so/2 + 0.5, sd*0.08, sleeveSegs, 1, false);
+    cuffGeom.rotateZ(Math.PI/2);
+    const lcuff = new THREE.Mesh(cuffGeom, secMat);
+    lcuff.position.copy(leftSleeve.position);
+    lcuff.rotation.copy(leftSleeve.rotation);
+    // shift to end of sleeve
+    lcuff.position.x -= Math.cos(slvDownAngle) * sl/2;
+    lcuff.position.y -= Math.sin(slvDownAngle) * sl/2;
+    garmentGroup.add(lcuff);
+    const rcuff = lcuff.clone();
+    rcuff.position.copy(rightSleeve.position);
+    rcuff.rotation.copy(rightSleeve.rotation);
+    rcuff.position.x += Math.cos(slvDownAngle) * sl/2;
+    rcuff.position.y -= Math.sin(slvDownAngle) * sl/2;
+    garmentGroup.add(rcuff);
+  }
+
+  // COLLAR / HOOD
+  const hasHood = state.silhouette === 'hoodie' || state.silhouette === 'parka';
+  if (hasHood) {
+    const hoodGeom = new THREE.SphereGeometry(bw*0.32, 18, 14, 0, Math.PI*2, 0, Math.PI/2);
+    const hood = new THREE.Mesh(hoodGeom, mainMat);
+    hood.position.set(0, bl/2 + bw*0.18, -depth*0.1);
+    hood.rotation.x = -Math.PI/2;
+    garmentGroup.add(hood);
+    const hoodEdges = new THREE.LineSegments(new THREE.EdgesGeometry(hoodGeom, 30), seamMat);
+    hood.add(hoodEdges);
+  } else {
+    // stand collar (small ring)
+    const collarG = new THREE.BoxGeometry(bw*0.5, bl*0.05, depth*0.8);
+    const collar = new THREE.Mesh(collarG, secMat);
+    collar.position.set(0, bl/2 + bl*0.025, 0);
+    garmentGroup.add(collar);
+  }
+
+  // POCKETS (visible plates on front)
+  if (state.pocket === 'patch' || state.pocket === 'cargo') {
+    const pkW = bw*0.22, pkH = bl*0.12;
+    const pkGeom = new THREE.BoxGeometry(pkW, pkH, 1);
+    if (state.pocket === 'cargo') {
+      [[-bw*0.26, bl*0.05], [bw*0.04, bl*0.05], [-bw*0.26, -bl*0.28], [bw*0.04, -bl*0.28]].forEach(([px, py]) => {
+        const pk = new THREE.Mesh(pkGeom, secMat);
+        pk.position.set(px + pkW/2, py, depth/2 + 0.5);
+        garmentGroup.add(pk);
+      });
+    } else {
+      [[-bw*0.32, -bl*0.1], [bw*0.10, -bl*0.1]].forEach(([px, py]) => {
+        const pk = new THREE.Mesh(pkGeom, secMat);
+        pk.position.set(px + pkW/2, py, depth/2 + 0.5);
+        garmentGroup.add(pk);
+      });
+    }
+  }
+
+  // ZIPPER ACCENT
+  if (state.closure === 'zip') {
+    const zipGeom = new THREE.BoxGeometry(0.6, bl*0.9, 1);
+    const zip = new THREE.Mesh(zipGeom, accentMat);
+    zip.position.set(0, 0, depth/2 + 0.6);
+    garmentGroup.add(zip);
+  }
+
+  // BACK GRAPHIC (as a textured plane)
+  if (state.graphic !== 'off') {
+    // create a canvas, render graphic SVG to it via XML serialization
+    try {
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const tmpSvg = document.createElementNS(svgNS, 'svg');
+      tmpSvg.setAttribute('viewBox', '0 0 400 200');
+      tmpSvg.setAttribute('xmlns', svgNS);
+      tmpSvg.innerHTML = graphicSVG(0, 0, 400, 200);
+      // serialize and load via image
+      const xml = new XMLSerializer().serializeToString(tmpSvg);
+      const svg64 = btoa(unescape(encodeURIComponent(xml)));
+      const url = 'data:image/svg+xml;base64,' + svg64;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = cw.primary;
+        ctx.fillRect(0, 0, 512, 256);
+        ctx.drawImage(img, 0, 0, 512, 256);
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.needsUpdate = true;
+        const plateGeom = new THREE.PlaneGeometry(bw*0.7, bl*0.45);
+        const plateMat = new THREE.MeshLambertMaterial({ map: tex, transparent: true });
+        const plate = new THREE.Mesh(plateGeom, plateMat);
+        plate.position.set(0, bl*0.05, -depth/2 - 0.3);
+        plate.rotation.y = Math.PI;
+        garmentGroup.add(plate);
+      };
+      img.src = url;
+    } catch(e) { /* fail gracefully */ }
+  }
+
+  scene.add(garmentGroup);
+}
+
+// =====================================================
+// DXF EXPORT
+// =====================================================
+function buildDXF() {
+  // Output simple DXF with POLYLINE entities for each pattern piece
+  const pieces = [];
+  const bw = state.bodyWidth, bl = state.bodyLength;
+  const sl = state.sleeveLength, sd = state.sleeveDepth;
+  const cw = 5; // collar width cm
+
+  // BACK piece (full body width since cut as one) — at 0,0 to bw, bl
+  pieces.push({ name: 'BACK', pts: [[0,0],[bw,0],[bw,bl],[0,bl],[0,0]] });
+
+  // SLEEVE L — at -sl, 0
+  pieces.push({ name: 'SLEEVE_L', pts: [[bw+10,0],[bw+10+sl,0],[bw+10+sl,sd],[bw+10,sd],[bw+10,0]] });
+  // SLEEVE R (same shape, mirrored)
+  pieces.push({ name: 'SLEEVE_R', pts: [[bw+20+sl,0],[bw+20+2*sl,0],[bw+20+2*sl,sd],[bw+20+sl,sd],[bw+20+sl,0]] });
+
+  // COLLAR strip
+  pieces.push({ name: 'COLLAR', pts: [[0,bl+10],[bl*1.4,bl+10],[bl*1.4,bl+10+cw*2],[0,bl+10+cw*2],[0,bl+10]] });
+
+  // If not noragi, add front L/R (split panels)
+  if (state.silhouette !== 'noragi') {
+    pieces.push({ name: 'FRONT_L', pts: [[0,bl+30],[bw/2,bl+30],[bw/2,bl*1.7+30],[0,bl*1.7+30],[0,bl+30]] });
+    pieces.push({ name: 'FRONT_R', pts: [[bw/2+10,bl+30],[bw+10,bl+30],[bw+10,bl*1.7+30],[bw/2+10,bl*1.7+30],[bw/2+10,bl+30]] });
+  }
+
+  // Build DXF text
+  let dxf = '';
+  dxf += '0\nSECTION\n2\nHEADER\n0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nTABLES\n';
+  dxf += '0\nTABLE\n2\nLAYER\n70\n2\n';
+  dxf += '0\nLAYER\n2\n0\n70\n0\n62\n7\n6\nCONTINUOUS\n';
+  dxf += '0\nLAYER\n2\nPATTERN\n70\n0\n62\n7\n6\nCONTINUOUS\n';
+  dxf += '0\nENDTAB\n0\nENDSEC\n';
+  dxf += '0\nSECTION\n2\nENTITIES\n';
+  pieces.forEach(p => {
+    dxf += '0\nPOLYLINE\n8\nPATTERN\n66\n1\n70\n1\n';
+    p.pts.forEach(pt => {
+      dxf += `0\nVERTEX\n8\nPATTERN\n10\n${pt[0]}\n20\n${pt[1]}\n30\n0\n`;
+    });
+    dxf += '0\nSEQEND\n8\nPATTERN\n';
+    // add label text at first point
+    dxf += `0\nTEXT\n8\nPATTERN\n10\n${p.pts[0][0] + 2}\n20\n${p.pts[0][1] + 2}\n30\n0\n40\n3\n1\n${p.name}\n`;
+  });
+  dxf += '0\nENDSEC\n0\nEOF\n';
+  return dxf;
+}
+
+document.getElementById('exportDxf').addEventListener('click', () => {
+  const dxf = buildDXF();
+  const blob = new Blob([dxf], { type: 'application/dxf' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${getCode()}-pattern.dxf`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('DXF exported');
+});
+
+// =====================================================
+// AI GRAPHIC GENERATION
+// =====================================================
+document.getElementById('aiGen').addEventListener('click', async () => {
+  const prompt = document.getElementById('aiPrompt').value.trim();
+  if (!prompt) { showToast('Enter a prompt'); return; }
+  const loading = document.getElementById('aiLoading');
+  loading.classList.add('show');
+  const btn = document.getElementById('aiGen');
+  btn.disabled = true;
+
+  const cw = getCW();
+  const systemPrompt = `You generate SVG content for a techwear back-graphic in the style of Machine56 / industrial mil-spec design.
+
+OUTPUT REQUIREMENTS:
+- Output ONLY raw SVG inner content (text, line, rect, circle, path elements) — NO <svg> wrapper, NO markdown, NO commentary
+- The content fits within viewBox "0 0 400 200"
+- Use ONLY these colors: "${cw.graphic}" (primary/text), "${cw.accent}" (accent/highlight)
+- Use font-family="JetBrains Mono" for technical text, "Archivo" for headlines
+- Include: industrial typography with letter-spacing, callout labels with batch numbers (e.g. "BATCH 247/2026"), small mecha-style box diagrams, mil-spec stencil dividers (lines), hazard symbols (triangles with dots), serial codes
+- Make it densely informative — multiple text layers, decorative lines, small connecting graphics — like a technical drawing covered in annotations
+- All text must be readable: use font-size between 4 and 28
+- The graphic style for "${state.silhouette.toUpperCase()}" silhouette in colorway "${cw.name}"
+
+THEME FROM USER: ${prompt}
+
+Start directly with SVG elements, no preamble.`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: systemPrompt }]
+      })
+    });
+    const data = await response.json();
+    let raw = '';
+    if (data.content) {
+      raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
+    }
+    // strip code fences if any
+    raw = raw.replace(/```(svg|xml|html)?/gi, '').replace(/```/g, '').trim();
+    // strip <svg ...> wrapper if Claude included it
+    raw = raw.replace(/<svg[^>]*>/i, '').replace(/<\/svg>/i, '').trim();
+
+    if (!raw || raw.length < 10) {
+      showToast('Empty response — try again');
+    } else {
+      state.aiGraphic = raw;
+      state.graphic = 'ai';
+      syncAllUI();
+      render();
+      showToast('AI graphic generated');
+    }
+  } catch (e) {
+    console.error(e);
+    showToast('Generation failed');
+  } finally {
+    loading.classList.remove('show');
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('aiClear').addEventListener('click', () => {
+  state.aiGraphic = null;
+  render();
+  showToast('Cleared');
+});
+
+// =====================================================
+// SAVE / LOAD
+// =====================================================
+async function saveDesign() {
+  const name = prompt('Name this design:', `${getName()}-${getCW().name}-${state.size}`);
+  if (!name) return;
+  try {
+    await window.storage.set(`design:${name}`, JSON.stringify({ name, state: {...state}, saved: new Date().toISOString() }));
+    showToast('Saved ' + name);
+    renderSavedList();
+  } catch (e) { showToast('Save failed'); }
+}
+
+async function loadDesign(name) {
+  try {
+    const result = await window.storage.get(`design:${name}`);
+    if (!result) return;
+    const design = JSON.parse(result.value);
+    Object.assign(state, design.state);
+    syncAllUI();
+    render();
+    showToast('Loaded ' + name);
+  } catch (e) {}
+}
+
+async function deleteDesign(name, ev) {
+  ev.stopPropagation();
+  try { await window.storage.delete(`design:${name}`); renderSavedList(); } catch(_) {}
+}
+
+async function renderSavedList() {
+  try {
+    const result = await window.storage.list('design:');
+    if (!result || !result.keys || result.keys.length === 0) {
+      document.getElementById('savedList').innerHTML = '<div style="font-size:9px; color:var(--soft); padding: 6px 0; letter-spacing:0.1em; text-transform:uppercase;">No saved designs yet</div>';
+      return;
+    }
+    const items = await Promise.all(result.keys.map(async k => {
+      try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; } catch { return null; }
+    }));
+    document.getElementById('savedList').innerHTML = items.filter(Boolean).map(d => `
+      <div class="saved-item" data-name="${d.name}">
+        <div><div class="si-name">${d.name}</div><div class="si-meta">${d.state.silhouette.toUpperCase()} · ${new Date(d.saved).toLocaleDateString()}</div></div>
+        <button class="si-del" data-del="${d.name}">×</button>
+      </div>
+    `).join('');
+    document.querySelectorAll('.saved-item').forEach(el => el.addEventListener('click', () => loadDesign(el.dataset.name)));
+    document.querySelectorAll('.si-del').forEach(el => el.addEventListener('click', (e) => deleteDesign(el.dataset.del, e)));
+  } catch (e) {
+    document.getElementById('savedList').innerHTML = '<div style="font-size:9px; color:var(--soft);">Storage unavailable</div>';
+  }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+function randomize() {
+  const sils = ['noragi','bomber','hoodie','parka'];
+  state.silhouette = sils[Math.floor(Math.random()*sils.length)];
+  applySilhouetteDefaults();
+  state.colorway = COLORWAYS[Math.floor(Math.random()*COLORWAYS.length)].id;
+  state.fabric = FABRICS[Math.floor(Math.random()*FABRICS.length)].id;
+  state.graphic = ['milspec','mecha','type'][Math.floor(Math.random()*3)];
+  syncAllUI();
+  render();
+}
+
+document.getElementById('exportJson').addEventListener('click', () => {
+  const data = { document: getCode()+'.A', silhouette: state.silhouette, designer: 'Zac Ting', generated: new Date().toISOString(), measurements: state, sizes: { XS: getGradedMeasurements('XS'), S: getGradedMeasurements('S'), M: getGradedMeasurements('M'), L: getGradedMeasurements('L'), XL: getGradedMeasurements('XL'), XXL: getGradedMeasurements('XXL') }, fabric: getFabric(), colorway: getCW() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = getCode() + '-techpack.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('exportSvg').addEventListener('click', () => {
+  const activePanel = document.querySelector('.tab-panel.active');
+  const svg = activePanel ? activePanel.querySelector('svg') : null;
+  if (!svg) { showToast('No SVG to export'); return; }
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const src = '<?xml version="1.0" encoding="UTF-8"?>\n' + clone.outerHTML;
+  const blob = new Blob([src], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${getCode()}-${state.view}.svg`; a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('saveBtn').addEventListener('click', saveDesign);
+document.getElementById('randomize').addEventListener('click', randomize);
+
+// =====================================================
+// MAIN RENDER
+// =====================================================
+function render() {
+  renderGarment();
+  renderPattern();
+  renderColorway();
+  renderSpec();
+  renderSourcing();
+  renderSizesPanel();
+  if (state.view === 'three' && threeReady) buildThreeGarment();
+}
+
+// =====================================================
+// INIT
+// =====================================================
+buildPickers();
+bindControls();
+applySilhouetteDefaults();
+render();
+renderSavedList();
+// init Three after dom settles
+setTimeout(initThree, 200);
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+schema_version = "1.0.0"
+id = "m_studio_bridge"
+version = "2.0.0"
+name = "M-STUDIO Bridge"
+tagline = "Import M-STUDIO packages and tech packs as garment pattern curves"
+maintainer = "Zac Ting"
+type = "add-on"
+license = ["SPDX:MIT"]
+
+blender_version_min = "4.2.0"
+
+[permissions]
+files = "Import .mstudio packages and JSON tech pack files from disk"
