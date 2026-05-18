@@ -365,26 +365,45 @@ def _create_pin_group(garment):
 
 def create_mannequin(measurements=None, scale=0.01):
     """
-    Create a collision mannequin. Uses MPFB2 if available, otherwise falls
-    back to a basic primitive body.
-
-    Args:
-        measurements: dict with bodyWidth, bodyLength etc. (cm)
-        scale: cm to Blender units
+    Create a collision mannequin.
+    Priority: 1) Bundled OBJ mannequin  2) MPFB2  3) Primitive fallback
 
     Returns:
         bpy.types.Object — the mannequin body (with Collision modifier)
     """
-    # Try MPFB2 first
+    # Try bundled OBJ mannequin first
+    body = _load_bundled_mannequin()
+    if body:
+        _add_collision(body)
+        body.name = "MSTUDIO_Mannequin"
+        bpy.ops.object.shade_smooth()
+        return body
+
+    # Try MPFB2
     body = _try_mpfb2_body()
     if body:
-        # Add collision
         _add_collision(body)
         body.name = "MSTUDIO_Mannequin"
         return body
 
     # Fallback: primitive mannequin
     return _create_primitive_mannequin(measurements, scale)
+
+
+def _load_bundled_mannequin():
+    """Load the mannequin.obj bundled with the addon."""
+    import os
+    addon_dir = os.path.dirname(os.path.realpath(__file__))
+    obj_path = os.path.join(addon_dir, "mannequin.obj")
+
+    if not os.path.exists(obj_path):
+        return None
+
+    bpy.ops.wm.obj_import(filepath=obj_path)
+    body = bpy.context.active_object
+    if body and body.type == "MESH":
+        return body
+    return None
 
 
 def _try_mpfb2_body():
