@@ -96,7 +96,12 @@ def _apply_cloth_preset(garment, fabric_id):
         existing.name = preset_name
 
     # Set properties
-    for prop_name in fabric_presets.CLOTH_PROP_NAMES:
+    cloth_props = [
+        "mass", "air_damping", "sewing_force",
+        "tension_stiffness", "compression_stiffness", "shear_stiffness", "bending_stiffness",
+        "tension_damping", "compression_damping", "shear_damping", "bending_damping",
+    ]
+    for prop_name in cloth_props:
         if prop_name in preset_data and hasattr(existing, prop_name):
             setattr(existing, prop_name, preset_data[prop_name])
 
