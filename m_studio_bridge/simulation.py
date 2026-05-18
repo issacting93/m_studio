@@ -267,10 +267,8 @@ def _match_boundary_verts(source_verts, target_verts, bm):
 def setup_cloth(garment, fabric_id="ripstop70"):
     """
     Add cloth modifier with sewing springs enabled.
-
-    Args:
-        garment: the joined garment mesh object
-        fabric_id: fabric preset ID from M-STUDIO
+    Creates a shoulder pin group so the garment hangs instead of falling.
+    Keyframes sewing force from 0 → target over 20 frames for stability.
     """
     preset = fabric_presets.get_preset(fabric_id)
 
@@ -278,6 +276,9 @@ def setup_cloth(garment, fabric_id="ripstop70"):
     for mod in list(garment.modifiers):
         if mod.type == "CLOTH":
             garment.modifiers.remove(mod)
+
+    # --- Create shoulder pin group ---
+    _create_pin_group(garment)
 
     cloth = garment.modifiers.new(name="Cloth", type="CLOTH")
     s = cloth.settings
@@ -298,6 +299,10 @@ def setup_cloth(garment, fabric_id="ripstop70"):
     s.use_sewing_springs = True
     s.sewing_force_max = preset.get("sewing_force", 20.0)
 
+    # Pin group — keeps shoulders in place
+    if "MSTUDIO_Pin" in garment.vertex_groups:
+        s.vertex_group_mass = "MSTUDIO_Pin"
+
     # Simulation quality
     s.quality = 12
     s.time_scale = 1.0
@@ -307,7 +312,51 @@ def setup_cloth(garment, fabric_id="ripstop70"):
     cloth.collision_settings.collision_quality = 5
     cloth.collision_settings.distance_min = 0.002
 
+    # --- Keyframe sewing force: 0 → target over 20 frames ---
+    scene = bpy.context.scene
+    scene.frame_set(1)
+    s.sewing_force_max = 0.0
+    s.keyframe_insert(data_path="sewing_force_max", frame=1)
+    target_force = preset.get("sewing_force", 20.0)
+    s.sewing_force_max = target_force
+    s.keyframe_insert(data_path="sewing_force_max", frame=20)
+
     return cloth
+
+
+def _create_pin_group(garment):
+    """
+    Create a vertex group that pins the topmost vertices (shoulder area).
+    Weight = 1.0 for pinned (immovable), 0.0 for free.
+    In Blender cloth, pin weight 1.0 = fully pinned, 0.0 = fully simulated.
+    """
+    mesh = garment.data
+
+    # Find the vertical extent of the garment
+    zs = [v.co.z for v in mesh.vertices]
+    if not zs:
+        return
+    z_max = max(zs)
+    z_min = min(zs)
+    z_range = z_max - z_min
+    if z_range == 0:
+        return
+
+    # Pin the top 5% of vertices (shoulder/neckline area)
+    pin_threshold = z_max - z_range * 0.05
+
+    # Create or get the pin group
+    if "MSTUDIO_Pin" in garment.vertex_groups:
+        garment.vertex_groups.remove(garment.vertex_groups["MSTUDIO_Pin"])
+    pin_group = garment.vertex_groups.new(name="MSTUDIO_Pin")
+
+    for v in mesh.vertices:
+        if v.co.z >= pin_threshold:
+            # Fully pinned
+            pin_group.add([v.index], 1.0, "REPLACE")
+        else:
+            # Fully free
+            pin_group.add([v.index], 0.0, "REPLACE")
 
 
 # ---------------------------------------------------------------------------
@@ -363,12 +412,35 @@ def create_mannequin(measurements=None, scale=0.01):
 # ---------------------------------------------------------------------------
 
 def position_for_drape(garment, mannequin):
-    """Move garment pieces above the mannequin for draping."""
-    # Get mannequin top
-    mann_top = mannequin.location.z + mannequin.dimensions.z / 2
+    """
+    Rotate garment from flat (XY plane) to vertical (XZ plane),
+    then center it over the mannequin.
+    """
+    # The pattern pieces are generated flat in the XY plane (Z=0).
+    # We need to rotate 90° around X so they hang vertically.
+    garment.rotation_euler[0] = math.radians(90)  # rotate around X
 
-    # Move garment above
-    garment.location.z = mann_top + 0.3  # 30cm above mannequin top
+    # Apply the rotation so vertex positions update
+    bpy.ops.object.select_all(action="DESELECT")
+    garment.select_set(True)
+    bpy.context.view_layer.objects.active = garment
+    bpy.ops.object.transform_apply(rotation=True)
+
+    # Center garment on mannequin
+    # Find garment center and mannequin center
+    garment_center = Vector((0, 0, 0))
+    verts = garment.data.vertices
+    if verts:
+        for v in verts:
+            garment_center += v.co
+        garment_center /= len(verts)
+
+    mann_center_z = mannequin.location.z
+
+    # Offset garment so its center aligns with mannequin
+    garment.location.x = mannequin.location.x - garment_center.x
+    garment.location.y = mannequin.location.y - garment_center.y
+    garment.location.z = mann_center_z - garment_center.z + 0.05  # slightly above
 
 
 # ---------------------------------------------------------------------------
