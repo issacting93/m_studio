@@ -59,8 +59,12 @@ class MSTUDIO_OT_CurvesToMesh(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        # Find curve objects in the scene
-        curves = {obj.name: obj for obj in context.scene.objects if obj.type == "CURVE"}
+        # Find curve objects in the scene, use canonical names
+        curves = {}
+        for obj in context.scene.objects:
+            if obj.type == "CURVE":
+                canonical = _strip_blender_suffix(obj.name)
+                curves[canonical] = obj
         if not curves:
             self.report({"WARNING"}, "No curve objects found")
             return {"CANCELLED"}
@@ -77,19 +81,23 @@ class MSTUDIO_OT_AddSewing(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        from . import pattern_geometry, sewing_map
+        from . import sewing_map
 
         # Find mesh objects (pattern pieces)
+        # Strip Blender suffixes (.001, .002) to get canonical piece names
         mesh_objs = {}
+        raw_objs = {}
         for obj in context.scene.objects:
             if obj.type == "MESH" and not obj.name.startswith("MSTUDIO_"):
-                mesh_objs[obj.name] = obj
+                canonical = _strip_blender_suffix(obj.name)
+                mesh_objs[canonical] = obj
+                raw_objs[obj.name] = obj
 
         if not mesh_objs:
             self.report({"WARNING"}, "No mesh pattern pieces found")
             return {"CANCELLED"}
 
-        # Detect silhouette from piece names
+        # Detect silhouette from canonical piece names
         silhouette = _detect_silhouette(mesh_objs.keys())
 
         # Get sewings for this silhouette
@@ -228,8 +236,14 @@ def _find_garment(context):
     return None
 
 
+def _strip_blender_suffix(name):
+    """Strip Blender's .001, .002 etc. suffixes from object names."""
+    import re
+    return re.sub(r"\.\d{3}$", "", name)
+
+
 def _detect_silhouette(piece_names):
-    """Guess silhouette from piece names."""
+    """Guess silhouette from piece names (already stripped of .001 suffixes)."""
     names = set(piece_names)
     if "HOOD" in names:
         if "FRONT_L" in names or "FRONT_R" in names:
