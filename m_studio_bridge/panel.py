@@ -117,7 +117,7 @@ class MSTUDIO_OT_SetupCloth(bpy.types.Operator):
     fabric: EnumProperty(
         name="Fabric",
         items=[
-            (fid, preset["name"], "")
+            (fid, f"{preset['name']}  ({preset['gsm']}gsm)", preset.get("category", "").upper())
             for fid, preset in fabric_presets.FABRIC_PRESETS.items()
         ],
         default="ripstop70",
