@@ -9,7 +9,7 @@ bl_info = {
 }
 
 import bpy
-from . import import_techpack
+from . import import_techpack, panel
 
 
 def menu_func_import(self, context):
@@ -21,9 +21,11 @@ def menu_func_import(self, context):
 
 def register():
     import_techpack.register()
+    panel.register()
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
 
 
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import)
+    panel.unregister()
     import_techpack.unregister()
