@@ -365,46 +365,163 @@ def _create_pin_group(garment):
 
 def create_mannequin(measurements=None, scale=0.01):
     """
-    Create a simple collision mannequin.
+    Create a collision mannequin. Uses MPFB2 if available, otherwise falls
+    back to a basic primitive body.
 
     Args:
         measurements: dict with bodyWidth, bodyLength etc. (cm)
         scale: cm to Blender units
+
+    Returns:
+        bpy.types.Object — the mannequin body (with Collision modifier)
     """
+    # Try MPFB2 first
+    body = _try_mpfb2_body()
+    if body:
+        # Add collision
+        _add_collision(body)
+        body.name = "MSTUDIO_Mannequin"
+        return body
+
+    # Fallback: primitive mannequin
+    return _create_primitive_mannequin(measurements, scale)
+
+
+def _try_mpfb2_body():
+    """Try to generate a body using MPFB2 if installed."""
+    try:
+        from mpfb.services.humanservice import HumanService
+        from mpfb.entities.humanproperties import HumanProperties
+
+        # Create a default human
+        bpy.ops.mpfb.create_human()
+        body = bpy.context.active_object
+        if body:
+            # Scale to roughly match garment proportions
+            # MPFB generates at real-world scale (meters)
+            return body
+    except (ImportError, AttributeError):
+        pass
+
+    # Try the operator directly (simpler MPFB2 versions)
+    try:
+        if hasattr(bpy.ops, "mpfb") and hasattr(bpy.ops.mpfb, "create_human"):
+            bpy.ops.mpfb.create_human()
+            body = bpy.context.active_object
+            if body and body.type == "MESH":
+                return body
+    except Exception:
+        pass
+
+    return None
+
+
+def _create_primitive_mannequin(measurements=None, scale=0.01):
+    """Fallback: build a mannequin from primitives."""
     body_w = (measurements or {}).get("bodyWidth", 52) * scale
     body_h = (measurements or {}).get("bodyLength", 70) * scale
     shoulder_w = (measurements or {}).get("shoulderWidth", 46) * scale
 
-    # Torso cylinder
+    # --- Torso ---
     bpy.ops.mesh.primitive_cylinder_add(
-        radius=body_w / 2 * 0.6,
-        depth=body_h * 0.8,
-        location=(0, 0, body_h * 0.5),
+        vertices=32,
+        radius=body_w / 2 * 0.55,
+        depth=body_h * 0.65,
+        location=(0, 0, body_h * 0.65),
     )
     torso = bpy.context.active_object
     torso.name = "MSTUDIO_Mannequin_Torso"
+    torso.scale.y = 0.65  # oval cross-section
 
-    # Scale to oval (narrower front-to-back)
-    torso.scale.y = 0.7
-
-    # Head sphere
-    bpy.ops.mesh.primitive_uv_sphere_add(
-        radius=body_w * 0.18,
+    # --- Shoulders (wider cylinder at top) ---
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=16,
+        radius=shoulder_w / 2 * scale,
+        depth=body_h * 0.06,
         location=(0, 0, body_h * 0.95),
+    )
+    shoulders = bpy.context.active_object
+    shoulders.name = "MSTUDIO_Mannequin_Shoulders"
+    shoulders.scale.y = 0.4
+
+    # --- Hips (wider at bottom) ---
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=16,
+        radius=body_w / 2 * 0.5,
+        depth=body_h * 0.15,
+        location=(0, 0, body_h * 0.35),
+    )
+    hips = bpy.context.active_object
+    hips.name = "MSTUDIO_Mannequin_Hips"
+    hips.scale.y = 0.7
+
+    # --- Head ---
+    bpy.ops.mesh.primitive_uv_sphere_add(
+        radius=body_w * 0.16,
+        location=(0, 0, body_h * 1.05),
     )
     head = bpy.context.active_object
     head.name = "MSTUDIO_Mannequin_Head"
 
-    # Collision modifier on both
-    for obj in [torso, head]:
-        col = obj.modifiers.new(name="Collision", type="COLLISION")
-        col.settings.thickness_outer = 0.003
-        col.settings.cloth_friction = 5.0
+    # --- Neck ---
+    bpy.ops.mesh.primitive_cylinder_add(
+        vertices=12,
+        radius=body_w * 0.08,
+        depth=body_h * 0.08,
+        location=(0, 0, body_h * 0.99),
+    )
+    neck = bpy.context.active_object
+    neck.name = "MSTUDIO_Mannequin_Neck"
 
-    # Parent head to torso
-    head.parent = torso
+    # --- Arms (cylinders angled outward) ---
+    arm_len = (measurements or {}).get("sleeveLength", 62) * scale
+    for side, sign in [("L", -1), ("R", 1)]:
+        bpy.ops.mesh.primitive_cylinder_add(
+            vertices=12,
+            radius=body_w * 0.07,
+            depth=arm_len,
+            location=(sign * shoulder_w / 2 * scale, 0, body_h * 0.75),
+        )
+        arm = bpy.context.active_object
+        arm.name = f"MSTUDIO_Mannequin_Arm_{side}"
+        # Angle arms slightly down and out
+        arm.rotation_euler[1] = sign * math.radians(15)
+        arm.parent = torso
+
+    # Join all parts into one mesh
+    parts = [obj for obj in bpy.data.objects if obj.name.startswith("MSTUDIO_Mannequin_")]
+    bpy.ops.object.select_all(action="DESELECT")
+    for p in parts:
+        p.select_set(True)
+    bpy.context.view_layer.objects.active = torso
+    bpy.ops.object.join()
+
+    torso.name = "MSTUDIO_Mannequin"
+
+    # Apply transforms
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+
+    # Smooth shading
+    bpy.ops.object.shade_smooth()
+
+    # Add collision
+    _add_collision(torso)
 
     return torso
+
+
+def _add_collision(obj):
+    """Add collision modifier to an object."""
+    # Remove existing collision modifiers
+    for mod in list(obj.modifiers):
+        if mod.type == "COLLISION":
+            obj.modifiers.remove(mod)
+
+    col = obj.modifiers.new(name="Collision", type="COLLISION")
+    col.settings.thickness_outer = 0.005
+    col.settings.thickness_inner = 0.002
+    col.settings.cloth_friction = 15.0
+    col.settings.damping = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -413,34 +530,84 @@ def create_mannequin(measurements=None, scale=0.01):
 
 def position_for_drape(garment, mannequin):
     """
-    Rotate garment from flat (XY plane) to vertical (XZ plane),
-    then center it over the mannequin.
-    """
-    # The pattern pieces are generated flat in the XY plane (Z=0).
-    # We need to rotate 90° around X so they hang vertically.
-    garment.rotation_euler[0] = math.radians(90)  # rotate around X
+    Position garment pieces around the mannequin for draping.
 
-    # Apply the rotation so vertex positions update
+    The pattern pieces start flat in the XY plane. We:
+    1. Rotate to vertical (XZ plane)
+    2. Center on the mannequin
+    3. Offset slightly outward so the pieces surround the body
+       (the sewing springs + collision will pull them into shape)
+    """
     bpy.ops.object.select_all(action="DESELECT")
     garment.select_set(True)
     bpy.context.view_layer.objects.active = garment
+
+    # Rotate from flat to vertical
+    garment.rotation_euler[0] = math.radians(90)
     bpy.ops.object.transform_apply(rotation=True)
 
-    # Center garment on mannequin
-    # Find garment center and mannequin center
-    garment_center = Vector((0, 0, 0))
-    verts = garment.data.vertices
-    if verts:
-        for v in verts:
-            garment_center += v.co
-        garment_center /= len(verts)
+    # Get mannequin bounds
+    mann_bounds = _get_bounds(mannequin)
+    mann_center = Vector((
+        (mann_bounds[0] + mann_bounds[3]) / 2,
+        (mann_bounds[1] + mann_bounds[4]) / 2,
+        (mann_bounds[2] + mann_bounds[5]) / 2,
+    ))
+    mann_height = mann_bounds[5] - mann_bounds[2]
 
-    mann_center_z = mannequin.location.z
+    # Get garment bounds
+    g_bounds = _get_bounds(garment)
+    g_center = Vector((
+        (g_bounds[0] + g_bounds[3]) / 2,
+        (g_bounds[1] + g_bounds[4]) / 2,
+        (g_bounds[2] + g_bounds[5]) / 2,
+    ))
+    g_height = g_bounds[5] - g_bounds[2]
 
-    # Offset garment so its center aligns with mannequin
-    garment.location.x = mannequin.location.x - garment_center.x
-    garment.location.y = mannequin.location.y - garment_center.y
-    garment.location.z = mann_center_z - garment_center.z + 0.05  # slightly above
+    # Position garment centered on mannequin
+    # Align the top of the garment with the top of the mannequin (shoulders)
+    garment.location.x = mann_center.x - g_center.x
+    garment.location.y = mann_center.y - g_center.y
+    garment.location.z = (mann_bounds[5] - g_bounds[5]) + 0.02  # top-align + small offset
+
+    # Apply location into mesh
+    bpy.ops.object.transform_apply(location=True)
+
+    # Push vertices slightly outward from mannequin center to wrap around body
+    _wrap_around_body(garment, mann_center, radius_offset=0.03)
+
+
+def _wrap_around_body(garment, body_center, radius_offset=0.03):
+    """
+    Push garment vertices slightly outward from the body center axis.
+    This ensures the flat pieces surround the body instead of intersecting it.
+    """
+    mesh = garment.data
+    for v in mesh.vertices:
+        # Distance from body center axis (XY only)
+        dx = v.co.x - body_center.x
+        dy = v.co.y - body_center.y
+        dist = math.sqrt(dx * dx + dy * dy)
+
+        if dist < 0.001:
+            # Vertex right on the axis — push forward
+            v.co.y += radius_offset
+        else:
+            # Push outward from center axis
+            scale = (dist + radius_offset) / dist
+            v.co.x = body_center.x + dx * scale
+            v.co.y = body_center.y + dy * scale
+
+    mesh.update()
+
+
+def _get_bounds(obj):
+    """Get world-space bounding box as (min_x, min_y, min_z, max_x, max_y, max_z)."""
+    corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+    xs = [c.x for c in corners]
+    ys = [c.y for c in corners]
+    zs = [c.z for c in corners]
+    return (min(xs), min(ys), min(zs), max(xs), max(ys), max(zs))
 
 
 # ---------------------------------------------------------------------------
