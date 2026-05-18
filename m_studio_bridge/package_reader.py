@@ -15,9 +15,17 @@ def read_file(filepath):
     Returns a unified dict with keys:
         manifest, colorway, grading, components, graphics
     """
+    # Check if file is a ZIP (by magic bytes) regardless of extension
+    is_zip = False
+    try:
+        with open(filepath, "rb") as f:
+            is_zip = f.read(4) == b"PK\x03\x04"
+    except OSError:
+        pass
+
     ext = os.path.splitext(filepath)[1].lower()
 
-    if ext == ".mstudio":
+    if is_zip or ext == ".mstudio":
         return _read_package(filepath)
     elif ext == ".json":
         return _read_legacy_json(filepath)

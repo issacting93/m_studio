@@ -65,7 +65,7 @@ class MSTUDIO_OT_Import(bpy.types.Operator, ImportHelper):
         # Parse file (handles both .mstudio and .json)
         try:
             data = package_reader.read_file(self.filepath)
-        except (ValueError, OSError) as e:
+        except Exception as e:
             self.report({"ERROR"}, f"Failed to read tech pack: {e}")
             return {"CANCELLED"}
 

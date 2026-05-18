@@ -34,15 +34,10 @@ struct PackageExportService {
             let placements = buildPlacementsAndWriteSVGs(to: graphicsDir)
             try placements.write(to: graphicsDir.appendingPathComponent("placements.json"))
 
-            // ZIP the package directory
+            // Build ZIP in memory and write to disk
             let zipURL = tmpDir.appendingPathComponent("\(packageName).mstudio")
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-            process.arguments = ["-c", "-k", "--sequesterRsrc", packageDir.path, zipURL.path]
-            try process.run()
-            process.waitUntilExit()
-
-            guard process.terminationStatus == 0 else { return nil }
+            let zipData = try buildZip(from: packageDir)
+            try zipData.write(to: zipURL)
 
             // Clean up the unzipped directory
             try? fm.removeItem(at: packageDir)
@@ -239,6 +234,123 @@ struct PackageExportService {
             Double((int >> 8) & 0xFF) / 255.0,
             Double(int & 0xFF) / 255.0,
         ]
+    }
+
+    // MARK: - ZIP Builder (pure Swift, no shell)
+
+    private func buildZip(from directory: URL) throws -> Data {
+        let fm = FileManager.default
+        var files: [(relativePath: String, data: Data)] = []
+
+        // Collect all files recursively
+        let basePath = directory.path
+        if let enumerator = fm.enumerator(atPath: basePath) {
+            while let relativePath = enumerator.nextObject() as? String {
+                let fullPath = (basePath as NSString).appendingPathComponent(relativePath)
+                var isDir: ObjCBool = false
+                if fm.fileExists(atPath: fullPath, isDirectory: &isDir), !isDir.boolValue {
+                    if let data = fm.contents(atPath: fullPath) {
+                        files.append((relativePath: relativePath, data: data))
+                    }
+                }
+            }
+        }
+
+        var zipData = Data()
+
+        struct FileEntry {
+            let offset: UInt32
+            let crc32: UInt32
+            let compressedSize: UInt32
+            let uncompressedSize: UInt32
+            let nameData: Data
+        }
+
+        var entries: [FileEntry] = []
+
+        // Write local file headers + data (stored, no compression)
+        for file in files {
+            let nameData = Data(file.relativePath.utf8)
+            let crc = crc32Checksum(file.data)
+            let size = UInt32(file.data.count)
+            let offset = UInt32(zipData.count)
+
+            entries.append(FileEntry(offset: offset, crc32: crc, compressedSize: size, uncompressedSize: size, nameData: nameData))
+
+            // Local file header (30 bytes + name)
+            zipData.append(contentsOf: [0x50, 0x4B, 0x03, 0x04]) // signature
+            zipData.appendUInt16(20)      // version needed
+            zipData.appendUInt16(0)       // flags
+            zipData.appendUInt16(0)       // compression: stored
+            zipData.appendUInt16(0)       // mod time
+            zipData.appendUInt16(0)       // mod date
+            zipData.appendUInt32(crc)     // crc-32
+            zipData.appendUInt32(size)    // compressed size
+            zipData.appendUInt32(size)    // uncompressed size
+            zipData.appendUInt16(UInt16(nameData.count)) // name length
+            zipData.appendUInt16(0)       // extra field length
+            zipData.append(nameData)      // file name
+            zipData.append(file.data)     // file data
+        }
+
+        // Central directory
+        let cdOffset = UInt32(zipData.count)
+        for entry in entries {
+            zipData.append(contentsOf: [0x50, 0x4B, 0x01, 0x02]) // signature
+            zipData.appendUInt16(20)      // version made by
+            zipData.appendUInt16(20)      // version needed
+            zipData.appendUInt16(0)       // flags
+            zipData.appendUInt16(0)       // compression
+            zipData.appendUInt16(0)       // mod time
+            zipData.appendUInt16(0)       // mod date
+            zipData.appendUInt32(entry.crc32)
+            zipData.appendUInt32(entry.compressedSize)
+            zipData.appendUInt32(entry.uncompressedSize)
+            zipData.appendUInt16(UInt16(entry.nameData.count))
+            zipData.appendUInt16(0)       // extra field length
+            zipData.appendUInt16(0)       // comment length
+            zipData.appendUInt16(0)       // disk number
+            zipData.appendUInt16(0)       // internal attrs
+            zipData.appendUInt32(0)       // external attrs
+            zipData.appendUInt32(entry.offset) // local header offset
+            zipData.append(entry.nameData)
+        }
+
+        let cdSize = UInt32(zipData.count) - cdOffset
+
+        // End of central directory
+        zipData.append(contentsOf: [0x50, 0x4B, 0x05, 0x06]) // signature
+        zipData.appendUInt16(0)           // disk number
+        zipData.appendUInt16(0)           // disk with CD
+        zipData.appendUInt16(UInt16(entries.count)) // entries on disk
+        zipData.appendUInt16(UInt16(entries.count)) // total entries
+        zipData.appendUInt32(cdSize)      // CD size
+        zipData.appendUInt32(cdOffset)    // CD offset
+        zipData.appendUInt16(0)           // comment length
+
+        return zipData
+    }
+
+    private func crc32Checksum(_ data: Data) -> UInt32 {
+        var crc: UInt32 = 0xFFFFFFFF
+        for byte in data {
+            crc ^= UInt32(byte)
+            for _ in 0..<8 {
+                crc = (crc >> 1) ^ (crc & 1 == 1 ? 0xEDB88320 : 0)
+            }
+        }
+        return crc ^ 0xFFFFFFFF
+    }
+}
+
+private extension Data {
+    mutating func appendUInt16(_ value: UInt16) {
+        var v = value.littleEndian
+        Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
+    }
+    mutating func appendUInt32(_ value: UInt32) {
+        var v = value.littleEndian
+        Swift.withUnsafeBytes(of: &v) { append(contentsOf: $0) }
     }
 }
 
